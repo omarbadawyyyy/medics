@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "646727714071",
+    "project_id": "medics-app-2025-xyz",
+    "storage_bucket": "medics-app-2025-xyz.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:646727714071:android:9a4700927b7831f7512352",
+        "android_client_info": {
+          "package_name": "com.example.medics"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAMf_yjsdWp5TM94Tdhn4WPlq2wXO5VJfE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
