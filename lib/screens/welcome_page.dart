@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/animation.dart';
+import 'login/DoctorSignUpPage.dart';
 import 'login/login_page.dart';
 import 'login/signupPage.dart';
 
@@ -156,6 +157,25 @@ class _WelcomePageState extends State<WelcomePage> with SingleTickerProviderStat
                     PageRouteBuilder(
                       transitionDuration: Duration(milliseconds: 800),
                       pageBuilder: (context, animation, secondaryAnimation) => SignUpPage(),
+                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                        var tween = Tween(begin: Offset(1.0, 0.0), end: Offset.zero)
+                            .chain(CurveTween(curve: Curves.easeInOutQuart));
+                        return SlideTransition(position: animation.drive(tween), child: child);
+                      },
+                    ),
+                  );
+                },
+              ),
+              SizedBox(height: 20),
+              _buildAnimatedButton(
+                text: 'Sign Up as a Doctor',
+                color: Colors.white,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      transitionDuration: Duration(milliseconds: 800),
+                      pageBuilder: (context, animation, secondaryAnimation) => DoctorSignUpPage(),
                       transitionsBuilder: (context, animation, secondaryAnimation, child) {
                         var tween = Tween(begin: Offset(1.0, 0.0), end: Offset.zero)
                             .chain(CurveTween(curve: Curves.easeInOutQuart));

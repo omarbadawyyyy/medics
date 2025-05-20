@@ -47,13 +47,14 @@ class _PharmacyPageState extends State<PharmacyPage> {
   final PageController _pageController = PageController();
   Timer? _timer;
   int _currentPageAds = 0;
-  final List<String> _adImages = [
+  final List<String> _adImages = const [
     'assets/ad1.jpg',
     'assets/ad2.jpg',
     'assets/ad3.jpg',
   ];
 
-  int _orderCount = 0; // متغير جديد لتخزين عدد الطلبيات
+  int _orderCount = 0;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -68,7 +69,7 @@ class _PharmacyPageState extends State<PharmacyPage> {
   Future<void> _loadContentWithDelay() async {
     setState(() => _isContentLoading = true);
     await Future.wait([
-      Future.delayed(const Duration(seconds: 3), () async {
+      Future.delayed(const Duration(seconds: 1), () async {
         await _initializeDatabase();
         await _fetchAddressesFromFirebase();
         await _fetchAllMedicines();
@@ -160,45 +161,138 @@ class _PharmacyPageState extends State<PharmacyPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Select Image Source'),
-          content: const Text('Choose where to get the image from:'),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                final XFile? image = await _picker.pickImage(source: ImageSource.camera);
-                if (image != null) {
-                  onImagePicked(image.path);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No image selected')),
-                  );
-                }
+        return AnimatedScale(
+          scale: 1.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 300),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                double dialogWidth = constraints.maxWidth * 0.85;
+                double dialogHeight = constraints.maxHeight * 0.5;
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * constraints.maxWidth / 360)),
+                  backgroundColor: Colors.white,
+                  contentPadding: EdgeInsets.all(16 * constraints.maxWidth / 360),
+                  content: SizedBox(
+                    width: dialogWidth,
+                    height: dialogHeight,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Lottie.asset(
+                            'assets/animation/loader.json',
+                            height: dialogHeight * 0.3,
+                            width: dialogWidth * 0.3,
+                          ),
+                          SizedBox(height: 16 * constraints.maxHeight / 640),
+                          Text(
+                            'Select Image Source',
+                            style: TextStyle(
+                              fontSize: 20 * constraints.maxWidth / 360,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8 * constraints.maxHeight / 640),
+                          Text(
+                            'Choose where to get the image from:',
+                            style: TextStyle(
+                              fontSize: 16 * constraints.maxWidth / 360,
+                              color: Colors.grey[600],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16 * constraints.maxHeight / 640),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  Navigator.pop(context);
+                                  final XFile? image = await _picker.pickImage(source: ImageSource.camera);
+                                  if (image != null) {
+                                    onImagePicked(image.path);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('No image selected')),
+                                    );
+                                  }
+                                },
+                                icon: Icon(Icons.camera_alt, size: 20 * constraints.maxWidth / 360),
+                                label: Text(
+                                  'Camera',
+                                  style: TextStyle(fontSize: 14 * constraints.maxWidth / 360),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                  ),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16 * constraints.maxWidth / 360,
+                                    vertical: 12 * constraints.maxHeight / 640,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  Navigator.pop(context);
+                                  final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+                                  if (image != null) {
+                                    onImagePicked(image.path);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('No image selected')),
+                                    );
+                                  }
+                                },
+                                icon: Icon(Icons.photo_library, size: 20 * constraints.maxWidth / 360),
+                                label: Text(
+                                  'Gallery',
+                                  style: TextStyle(fontSize: 14 * constraints.maxWidth / 360),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                  ),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16 * constraints.maxWidth / 360,
+                                    vertical: 12 * constraints.maxHeight / 640,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16 * constraints.maxWidth / 360,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
               },
-              child: const Text('Camera'),
             ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-                if (image != null) {
-                  onImagePicked(image.path);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No image selected')),
-                  );
-                }
-              },
-              child: const Text('Gallery'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
+          ),
         );
       },
     );
@@ -267,7 +361,7 @@ class _PharmacyPageState extends State<PharmacyPage> {
         throw Exception('Failed to decode image');
       }
 
-      final img.Image resizedImage = img.copyResize(image, width: image.width ~/ 2);
+      final img.Image resizedImage = img.copyResize(image, width: 800);
       final List<int> compressedImage = img.encodeJpg(resizedImage, quality: 70);
       return base64Encode(compressedImage);
     } catch (e) {
@@ -279,13 +373,13 @@ class _PharmacyPageState extends State<PharmacyPage> {
   }
 
   Future<List<String>> _sendImageToGeminiAPI(String imagePath) async {
-    final String geminiApiKey = "AIzaSyBktPI-UXkVe48F647saaMHuby7WoNjz1I";
+    const String geminiApiKey = "AIzaSyBktPI-UXkVe48F647saaMHuby7WoNjz1I";
     final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=$geminiApiKey');
 
     final String base64Image = await _compressAndConvertToBase64(imagePath);
 
-    final prompt = """
+    const prompt = """
 You are a medical assistant AI specialized in recognizing medicine names from prescription images. I have an image of a prescription. Your task is to analyze the image and extract only the names of the medicines from the prescription. Be very precise and careful with spelling, as medicine names must be accurate for database matching. Return the medicine names as a list, with each name properly formatted (e.g., capitalize the first letter of each word). If no medicines are found, return an empty list.
 
 Here are some examples of common medicine names to help you recognize them accurately:
@@ -464,238 +558,532 @@ Now, analyze the image and return the list of medicine names with accurate spell
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        if (found && _selectedMedicine != null) {
-          return AlertDialog(
-            title: const Text('Medicine Details'),
-            content: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_pickedImagePath != null)
-                    Container(
-                      width: MediaQuery.of(context).size.width * 0.25,
-                      height: MediaQuery.of(context).size.width * 0.25,
-                      margin: EdgeInsets.only(bottom: MediaQuery.of(context).size.width * 0.025),
-                      child: Image.file(
-                        File(_pickedImagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: Colors.blue[100],
-                              borderRadius: BorderRadius.circular(8.0),
+        return AnimatedScale(
+          scale: 1.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 300),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                double dialogWidth = constraints.maxWidth * 0.85;
+                double dialogHeight = constraints.maxHeight * 0.7;
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * constraints.maxWidth / 360)),
+                  backgroundColor: Colors.white,
+                  contentPadding: EdgeInsets.all(16 * constraints.maxWidth / 360),
+                  content: SizedBox(
+                    width: dialogWidth,
+                    height: dialogHeight,
+                    child: found && _selectedMedicine != null
+                        ? SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Medicine Details',
+                            style: TextStyle(
+                              fontSize: 20 * constraints.maxWidth / 360,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
                             ),
-                            child: Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.1, color: Colors.blue),
-                          );
-                        },
+                          ),
+                          SizedBox(height: 16 * constraints.maxHeight / 640),
+                          if (_pickedImagePath != null)
+                            Center(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                child: Image.file(
+                                  File(_pickedImagePath!),
+                                  width: dialogWidth * 0.5,
+                                  height: dialogWidth * 0.5,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: dialogWidth * 0.5,
+                                      height: dialogWidth * 0.5,
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[100],
+                                        borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                      ),
+                                      child: Icon(
+                                        Icons.medical_services,
+                                        size: 40 * constraints.maxWidth / 360,
+                                        color: Colors.blue,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            )
+                          else
+                            Center(
+                              child: Container(
+                                width: dialogWidth * 0.5,
+                                height: dialogWidth * 0.5,
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[100],
+                                  borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                ),
+                                child: Icon(
+                                  Icons.medical_services,
+                                  size: 40 * constraints.maxWidth / 360,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                          SizedBox(height: 16 * constraints.maxHeight / 640),
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(12 * constraints.maxWidth / 360),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: dialogWidth * 0.25,
+                                    height: dialogWidth * 0.25,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10 * constraints.maxWidth / 360),
+                                    ),
+                                    child: _selectedMedicine!['imagePath'] != null
+                                        ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(10 * constraints.maxWidth / 360),
+                                      child: Image.asset(
+                                        _selectedMedicine!['imagePath'],
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Icon(
+                                            Icons.medical_services,
+                                            size: 40 * constraints.maxWidth / 360,
+                                            color: Colors.blue,
+                                          );
+                                        },
+                                      ),
+                                    )
+                                        : Icon(
+                                      Icons.medical_services,
+                                      size: 40 * constraints.maxWidth / 360,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12 * constraints.maxWidth / 360),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Name: ${_selectedMedicine!['name']}',
+                                          style: TextStyle(
+                                            fontSize: 16 * constraints.maxWidth / 360,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        SizedBox(height: 8 * constraints.maxHeight / 640),
+                                        Text(
+                                          'Category: ${_selectedMedicine!['category']}',
+                                          style: TextStyle(
+                                            fontSize: 14 * constraints.maxWidth / 360,
+                                            color: Colors.grey[600],
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        SizedBox(height: 8 * constraints.maxHeight / 640),
+                                        Text(
+                                          'Price: \$${_selectedMedicine!['price']}',
+                                          style: TextStyle(
+                                            fontSize: 14 * constraints.maxWidth / 360,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     )
-                  else
-                    Container(
-                      width: MediaQuery.of(context).size.width * 0.25,
-                      height: MediaQuery.of(context).size.width * 0.25,
-                      margin: EdgeInsets.only(bottom: MediaQuery.of(context).size.width * 0.025),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[100],
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      child: Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.1, color: Colors.blue),
-                    ),
-                  Text('Name: ${_selectedMedicine!['name']}'),
-                  Text('Category: ${_selectedMedicine!['category']}'),
-                  Text('Price: \$${_selectedMedicine!['price']}'),
-                ],
-              ),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _addedProducts[_selectedMedicine!['name']] = 1;
-                  });
-                  Navigator.pop(context);
-                  setState(() {
-                    _pickedImagePath = null;
-                    _selectedMedicine = null;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${_selectedMedicine!['name']} added to cart!')),
-                  );
-                },
-                child: const Text('Add to Cart'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _pickedImagePath = null;
-                    _selectedMedicine = null;
-                  });
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        } else {
-          return AlertDialog(
-            title: const Text('No Medicine Found'),
-            content: const Text('The searched medicine was not found in the database.'),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _pickedImagePath = null;
-                  });
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        }
-      },
-    );
-  }
-
-  void _showPrescriptionResultsDialog(List<Map<String, dynamic>> foundMedicines, List<String> notFoundMedicines) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Prescription Results'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_pickedImagePath != null)
-                  Container(
-                    width: MediaQuery.of(context).size.width * 0.5,
-                    height: MediaQuery.of(context).size.width * 0.5,
-                    margin: EdgeInsets.only(bottom: MediaQuery.of(context).size.width * 0.025),
-                    child: Image.file(
-                      File(_pickedImagePath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue[100],
-                            borderRadius: BorderRadius.circular(8.0),
+                        : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'No Medicine Found',
+                          style: TextStyle(
+                            fontSize: 20 * constraints.maxWidth / 360,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
                           ),
-                          child: Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.1, color: Colors.blue),
-                        );
+                        ),
+                        SizedBox(height: 16 * constraints.maxHeight / 640),
+                        Text(
+                          'The searched medicine was not found in the database.',
+                          style: TextStyle(
+                            fontSize: 16 * constraints.maxWidth / 360,
+                            color: Colors.grey[600],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    if (found && _selectedMedicine != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _addedProducts[_selectedMedicine!['name']] = 1;
+                          });
+                          Navigator.pop(context);
+                          setState(() {
+                            _pickedImagePath = null;
+                            _selectedMedicine = null;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${_selectedMedicine!['name']} added to cart!',
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Add to Cart',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 16 * constraints.maxWidth / 360,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _pickedImagePath = null;
+                          _selectedMedicine = null;
+                        });
                       },
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16 * constraints.maxWidth / 360,
+                        ),
+                      ),
                     ),
-                  ),
-                if (foundMedicines.isNotEmpty) ...[
-                  const Text(
-                    'Found Medicines:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 10),
-                  ...foundMedicines.map((medicine) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Name: ${medicine['name']}'),
-                                Text('Category: ${medicine['category']}'),
-                                Text('Price: \$${medicine['price']}'),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _addedProducts[medicine['name']] = 1;
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('${medicine['name']} added to cart!')),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Add to Cart'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ],
-                if (notFoundMedicines.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Not Found Medicines:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 10),
-                  ...notFoundMedicines.map((medicineName) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(medicineName),
-                          const Text(
-                            'غير متوفرة، ستتوفر قريبًا',
-                            style: TextStyle(color: Colors.red, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ],
-                if (foundMedicines.isEmpty && notFoundMedicines.isEmpty)
-                  const Text('No medicines detected in the prescription.'),
-              ],
+                  ],
+                );
+              },
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  _pickedImagePath = null;
-                });
-              },
-              child: const Text('OK'),
-            ),
-          ],
         );
       },
     );
   }
 
-  Future<void> _onSearchTextChanged() async {
-    final query = _searchController.text.trim();
+  void _showPrescriptionResultsDialog(
+      List<Map<String, dynamic>> foundMedicines, List<String> notFoundMedicines) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AnimatedScale(
+          scale: 1.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 300),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                double dialogWidth = constraints.maxWidth * 0.85;
+                double dialogHeight = constraints.maxHeight * 0.7;
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * constraints.maxWidth / 360)),
+                  backgroundColor: Colors.white,
+                  contentPadding: EdgeInsets.all(16 * constraints.maxWidth / 360),
+                  content: SizedBox(
+                    width: dialogWidth,
+                    height: dialogHeight,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Prescription Results',
+                            style: TextStyle(
+                              fontSize: 20 * constraints.maxWidth / 360,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                          ),
+                          SizedBox(height: 16 * constraints.maxHeight / 640),
+                          if (_pickedImagePath != null)
+                            Center(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                child: Image.file(
+                                  File(_pickedImagePath!),
+                                  width: dialogWidth * 0.6,
+                                  height: dialogWidth * 0.6,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: dialogWidth * 0.6,
+                                      height: dialogWidth * 0.6,
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[100],
+                                        borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                      ),
+                                      child: Icon(
+                                        Icons.medical_services,
+                                        size: 40 * constraints.maxWidth / 360,
+                                        color: Colors.blue,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          SizedBox(height: 16 * constraints.maxHeight / 640),
+                          if (foundMedicines.isNotEmpty) ...[
+                            Text(
+                              'Found Medicines:',
+                              style: TextStyle(
+                                fontSize: 16 * constraints.maxWidth / 360,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            SizedBox(height: 8 * constraints.maxHeight / 640),
+                            ...foundMedicines.map((medicine) {
+                              return Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8 * constraints.maxHeight / 640),
+                                child: Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12 * constraints.maxWidth / 360),
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12 * constraints.maxWidth / 360),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: dialogWidth * 0.25,
+                                          height: dialogWidth * 0.25,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(10 * constraints.maxWidth / 360),
+                                          ),
+                                          child: medicine['imagePath'] != null
+                                              ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(10 * constraints.maxWidth / 360),
+                                            child: Image.asset(
+                                              medicine['imagePath'],
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.medical_services,
+                                                  size: 40 * constraints.maxWidth / 360,
+                                                  color: Colors.blue,
+                                                );
+                                              },
+                                            ),
+                                          )
+                                              : Icon(
+                                            Icons.medical_services,
+                                            size: 40 * constraints.maxWidth / 360,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                        SizedBox(width: 12 * constraints.maxWidth / 360),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Name: ${medicine['name']}',
+                                                style: TextStyle(
+                                                  fontSize: 14 * constraints.maxWidth / 360,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              SizedBox(height: 4 * constraints.maxHeight / 640),
+                                              Text(
+                                                'Category: ${medicine['category']}',
+                                                style: TextStyle(
+                                                  fontSize: 12 * constraints.maxWidth / 360,
+                                                  color: Colors.grey[600],
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              SizedBox(height: 4 * constraints.maxHeight / 640),
+                                              Text(
+                                                'Price: \$${medicine['price']}',
+                                                style: TextStyle(
+                                                  fontSize: 12 * constraints.maxWidth / 360,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blue,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(width: 8 * constraints.maxWidth / 360),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _addedProducts[medicine['name']] = 1;
+                                            });
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  '${medicine['name']} added to cart!',
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8 * constraints.maxWidth / 360),
+                                            ),
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 12 * constraints.maxWidth / 360,
+                                              vertical: 8 * constraints.maxHeight / 640,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Add to Cart',
+                                            style: TextStyle(fontSize: 12 * constraints.maxWidth / 360),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                          if (notFoundMedicines.isNotEmpty) ...[
+                            SizedBox(height: 16 * constraints.maxHeight / 640),
+                            Text(
+                              'Not Found Medicines:',
+                              style: TextStyle(
+                                fontSize: 16 * constraints.maxWidth / 360,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            SizedBox(height: 8 * constraints.maxHeight / 640),
+                            ...notFoundMedicines.map((medicineName) {
+                              return Padding(
+                                padding: EdgeInsets.symmetric(vertical: 4 * constraints.maxHeight / 640),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        medicineName,
+                                        style: TextStyle(fontSize: 14 * constraints.maxWidth / 360),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Text(
+                                      'غير متوفرة، ستتوفر قريبًا',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 12 * constraints.maxWidth / 360,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                          if (foundMedicines.isEmpty && notFoundMedicines.isEmpty)
+                            Text(
+                              'No medicines detected in the prescription.',
+                              style: TextStyle(fontSize: 16 * constraints.maxWidth / 360, color: Colors.grey),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _pickedImagePath = null;
+                        });
+                      },
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16 * constraints.maxWidth / 360,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-    if (query.isEmpty) {
-      _removeOverlay();
-      setState(() {
-        _searchResults = [];
-      });
-      return;
-    }
+  void _onSearchTextChanged() {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      final query = _searchController.text.trim();
 
-    final results = await _dbHelper.searchMedicines(query);
-    final uniqueResults = <String, Map<String, dynamic>>{};
-    for (var result in results) {
-      uniqueResults[result['name']] = result;
-    }
-    final filteredResults = uniqueResults.values.toList();
+      if (query.isEmpty) {
+        _removeOverlay();
+        setState(() {
+          _searchResults = [];
+        });
+        return;
+      }
 
-    if (mounted) {
-      setState(() {
-        _searchResults = filteredResults;
-      });
-      _showOverlay(context);
-    }
+      final results = await _dbHelper.searchMedicines(query);
+      final uniqueResults = <String, Map<String, dynamic>>{};
+      for (var result in results) {
+        uniqueResults[result['name']] = result;
+      }
+      final filteredResults = uniqueResults.values.toList();
+
+      if (mounted) {
+        setState(() {
+          _searchResults = filteredResults;
+        });
+        _showOverlay(context);
+      }
+    });
   }
 
   void _showOverlay(BuildContext context) {
@@ -712,7 +1100,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
             height: MediaQuery.of(context).size.height * 0.8,
             color: Colors.grey[200],
             child: _searchResults.isEmpty
-                ? const Center(child: Text('No results found'))
+                ? Center(child: Text('No results found', style: TextStyle(fontSize: 16 * MediaQuery.of(context).size.width / 360)))
                 : ListView.builder(
               padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.025),
               itemCount: _searchResults.length,
@@ -742,7 +1130,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
     return Card(
       margin: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.01),
       elevation: 3.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15 * MediaQuery.of(context).size.width / 360)),
       color: Colors.white,
       child: Padding(
         padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.025),
@@ -753,20 +1141,28 @@ Now, analyze the image and return the list of medicine names with accurate spell
               width: MediaQuery.of(context).size.width * 0.15,
               height: MediaQuery.of(context).size.width * 0.15,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10.0),
+                borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
               ),
               child: medicine['imagePath'] != null
                   ? ClipRRect(
-                borderRadius: BorderRadius.circular(10.0),
+                borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
                 child: Image.asset(
                   medicine['imagePath'],
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    return Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.075, color: Colors.blue);
+                    return Icon(
+                      Icons.medical_services,
+                      size: MediaQuery.of(context).size.width * 0.075,
+                      color: Colors.blue,
+                    );
                   },
                 ),
               )
-                  : Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.075, color: Colors.blue),
+                  : Icon(
+                Icons.medical_services,
+                size: MediaQuery.of(context).size.width * 0.075,
+                color: Colors.blue,
+              ),
             ),
             SizedBox(width: MediaQuery.of(context).size.width * 0.025),
             Expanded(
@@ -813,7 +1209,10 @@ Now, analyze the image and return the list of medicine names with accurate spell
                 ? Row(
               children: [
                 IconButton(
-                  icon: Icon(Icons.remove, size: MediaQuery.of(context).size.width * 0.045),
+                  icon: Icon(
+                    Icons.remove,
+                    size: MediaQuery.of(context).size.width * 0.045,
+                  ),
                   onPressed: () {
                     setState(() {
                       if (count > 1) {
@@ -827,10 +1226,15 @@ Now, analyze the image and return the list of medicine names with accurate spell
                 ),
                 Text(
                   '$count',
-                  style: TextStyle(fontSize: MediaQuery.of(context).size.width * 0.04),
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width * 0.04,
+                  ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.add, size: MediaQuery.of(context).size.width * 0.045),
+                  icon: Icon(
+                    Icons.add,
+                    size: MediaQuery.of(context).size.width * 0.045,
+                  ),
                   onPressed: () {
                     setState(() {
                       _addedProducts[medicineName] = count + 1;
@@ -850,7 +1254,9 @@ Now, analyze the image and return the list of medicine names with accurate spell
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
+                ),
                 padding: EdgeInsets.symmetric(
                   horizontal: MediaQuery.of(context).size.width * 0.03,
                   vertical: MediaQuery.of(context).size.height * 0.015,
@@ -880,7 +1286,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
         vertical: MediaQuery.of(context).size.height * 0.005,
       ),
       elevation: 3.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15 * MediaQuery.of(context).size.width / 360)),
       color: Colors.white,
       child: Padding(
         padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.025),
@@ -892,20 +1298,28 @@ Now, analyze the image and return the list of medicine names with accurate spell
               height: MediaQuery.of(context).size.height * 0.1,
               width: double.infinity,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10.0),
+                borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
               ),
               child: medicine['imagePath'] != null
                   ? ClipRRect(
-                borderRadius: BorderRadius.circular(10.0),
+                borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
                 child: Image.asset(
                   medicine['imagePath'],
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    return Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.1, color: Colors.blue);
+                    return Icon(
+                      Icons.medical_services,
+                      size: MediaQuery.of(context).size.width * 0.1,
+                      color: Colors.blue,
+                    );
                   },
                 ),
               )
-                  : Icon(Icons.medical_services, size: MediaQuery.of(context).size.width * 0.1, color: Colors.blue),
+                  : Icon(
+                Icons.medical_services,
+                size: MediaQuery.of(context).size.width * 0.1,
+                color: Colors.blue,
+              ),
             ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.01),
             Text(
@@ -945,7 +1359,10 @@ Now, analyze the image and return the list of medicine names with accurate spell
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: Icon(Icons.remove, size: MediaQuery.of(context).size.width * 0.045),
+                  icon: Icon(
+                    Icons.remove,
+                    size: MediaQuery.of(context).size.width * 0.045,
+                  ),
                   onPressed: () {
                     setState(() {
                       if (count > 1) {
@@ -958,10 +1375,15 @@ Now, analyze the image and return the list of medicine names with accurate spell
                 ),
                 Text(
                   '$count',
-                  style: TextStyle(fontSize: MediaQuery.of(context).size.width * 0.04),
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width * 0.04,
+                  ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.add, size: MediaQuery.of(context).size.width * 0.045),
+                  icon: Icon(
+                    Icons.add,
+                    size: MediaQuery.of(context).size.width * 0.045,
+                  ),
                   onPressed: () {
                     setState(() {
                       _addedProducts[medicineName] = count + 1;
@@ -981,8 +1403,12 @@ Now, analyze the image and return the list of medicine names with accurate spell
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-                  padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.015),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    vertical: MediaQuery.of(context).size.height * 0.015,
+                  ),
                 ),
                 child: Text(
                   'Add to Cart',
@@ -1054,9 +1480,16 @@ Now, analyze the image and return the list of medicine names with accurate spell
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8 * MediaQuery.of(context).size.width / 360),
+                    ),
                   ),
-                  child: const Text('View Cart'),
+                  child: Text(
+                    'View Cart',
+                    style: TextStyle(
+                      fontSize: MediaQuery.of(context).size.width * 0.035,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1084,15 +1517,18 @@ Now, analyze the image and return the list of medicine names with accurate spell
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Stack(
         children: [
           SingleChildScrollView(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).size.height * 0.08),
+            padding: EdgeInsets.only(bottom: screenHeight * 0.08),
             child: Column(
               children: [
                 Container(
-                  padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
+                  padding: EdgeInsets.all(screenWidth * 0.05),
                   color: Colors.blue,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1109,7 +1545,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
                                   'Deliver to',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: MediaQuery.of(context).size.width * 0.055,
+                                    fontSize: screenWidth * 0.055,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -1117,13 +1553,13 @@ Now, analyze the image and return the list of medicine names with accurate spell
                                   onTap: _showAddressPicker,
                                   child: Container(
                                     constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.of(context).size.width * 0.6,
+                                      maxWidth: screenWidth * 0.6,
                                     ),
                                     child: Text(
                                       _shortenAddress(_selectedAddress),
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: MediaQuery.of(context).size.width * 0.04,
+                                        fontSize: screenWidth * 0.04,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -1135,7 +1571,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
                             ),
                           ),
                           Padding(
-                            padding: EdgeInsets.only(left: MediaQuery.of(context).size.width * 0.02),
+                            padding: EdgeInsets.only(left: screenWidth * 0.02),
                             child: StreamBuilder<QuerySnapshot>(
                               stream: FirebaseFirestore.instance
                                   .collection('orders')
@@ -1144,16 +1580,16 @@ Now, analyze the image and return the list of medicine names with accurate spell
                                   .snapshots(),
                               builder: (context, snapshot) {
                                 if (snapshot.connectionState == ConnectionState.waiting) {
-                                  return const IconButton(
-                                    icon: Icon(Icons.track_changes, color: Colors.white, size: 30),
+                                  return IconButton(
+                                    icon: Icon(Icons.track_changes, color: Colors.white, size: screenWidth * 0.075),
                                     tooltip: 'Track Orders',
                                     onPressed: null,
                                   );
                                 }
                                 if (snapshot.hasError) {
                                   print('Error fetching orders: ${snapshot.error}');
-                                  return const IconButton(
-                                    icon: Icon(Icons.track_changes, color: Colors.white, size: 30),
+                                  return IconButton(
+                                    icon: Icon(Icons.track_changes, color: Colors.white, size: screenWidth * 0.075),
                                     tooltip: 'Track Orders',
                                     onPressed: null,
                                   );
@@ -1162,26 +1598,26 @@ Now, analyze the image and return the list of medicine names with accurate spell
                                 return IconButton(
                                   icon: Stack(
                                     children: [
-                                      const Icon(Icons.track_changes, color: Colors.white, size: 30),
+                                      Icon(Icons.track_changes, color: Colors.white, size: screenWidth * 0.075),
                                       if (orderCount > 0)
                                         Positioned(
                                           right: 0,
                                           top: 0,
                                           child: Container(
-                                            padding: const EdgeInsets.all(2),
+                                            padding: EdgeInsets.all(2 * screenWidth / 360),
                                             decoration: const BoxDecoration(
                                               color: Colors.red,
                                               shape: BoxShape.circle,
                                             ),
-                                            constraints: const BoxConstraints(
-                                              minWidth: 16,
-                                              minHeight: 16,
+                                            constraints: BoxConstraints(
+                                              minWidth: 16 * screenWidth / 360,
+                                              minHeight: 16 * screenWidth / 360,
                                             ),
                                             child: Text(
                                               '$orderCount',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 color: Colors.white,
-                                                fontSize: 10,
+                                                fontSize: 10 * screenWidth / 360,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                               textAlign: TextAlign.center,
@@ -1208,46 +1644,46 @@ Now, analyze the image and return the list of medicine names with accurate spell
                           ),
                         ],
                       ),
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                      SizedBox(height: screenHeight * 0.02),
                       Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: MediaQuery.of(context).size.width * 0.03,
-                          vertical: MediaQuery.of(context).size.height * 0.005,
+                          horizontal: screenWidth * 0.03,
+                          vertical: screenHeight * 0.005,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(8.0),
+                          borderRadius: BorderRadius.circular(8 * screenWidth / 360),
                         ),
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
                             hintText: 'What are you looking for?',
-                            hintStyle: TextStyle(fontSize: MediaQuery.of(context).size.width * 0.035),
+                            hintStyle: TextStyle(fontSize: screenWidth * 0.035),
                             border: InputBorder.none,
-                            prefixIcon: Icon(Icons.search, size: MediaQuery.of(context).size.width * 0.045),
+                            prefixIcon: Icon(Icons.search, size: screenWidth * 0.045),
                           ),
                         ),
                       ),
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.025),
+                      SizedBox(height: screenHeight * 0.025),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _buildButton(
                             'Prescription or Claim',
                             Icons.local_pharmacy,
-                            MediaQuery.of(context).size.height * 0.08,
+                            screenHeight * 0.08,
                             onTap: _pickImageForPrescription,
                           ),
                           _buildButton(
                             'Product Picture',
                             Icons.camera_alt,
-                            MediaQuery.of(context).size.height * 0.11,
+                            screenHeight * 0.08,
                             onTap: _pickImage,
                           ),
                           _buildButton(
                             'Pharmacist Assistance',
                             Icons.phone,
-                            MediaQuery.of(context).size.height * 0.08,
+                            screenHeight * 0.08,
                             onTap: _makePhoneCall,
                           ),
                         ],
@@ -1257,11 +1693,11 @@ Now, analyze the image and return the list of medicine names with accurate spell
                 ),
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    vertical: MediaQuery.of(context).size.height * 0.015,
-                    horizontal: MediaQuery.of(context).size.width * 0.05,
+                    vertical: screenHeight * 0.015,
+                    horizontal: screenWidth * 0.05,
                   ),
                   child: SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.2,
+                    height: screenHeight * 0.2,
                     child: PageView.builder(
                       controller: _pageController,
                       itemCount: _adImages.length,
@@ -1272,18 +1708,18 @@ Now, analyze the image and return the list of medicine names with accurate spell
                       },
                       itemBuilder: (context, index) {
                         return Container(
-                          margin: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width * 0.0125),
+                          margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.0125),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8.0),
+                            borderRadius: BorderRadius.circular(8 * screenWidth / 360),
                             border: Border.all(color: Colors.grey),
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8.0),
+                            borderRadius: BorderRadius.circular(8 * screenWidth / 360),
                             child: Image.asset(
                               _adImages[index],
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Center(
-                                child: Icon(Icons.error, color: Colors.red),
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Icon(Icons.error, color: Colors.red, size: screenWidth * 0.075),
                               ),
                             ),
                           ),
@@ -1294,22 +1730,29 @@ Now, analyze the image and return the list of medicine names with accurate spell
                 ),
                 if (_isLoading)
                   Padding(
-                    padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.025),
-                    child: const CircularProgressIndicator(color: Colors.blue),
+                    padding: EdgeInsets.symmetric(vertical: screenHeight * 0.025),
+                    child: Lottie.asset(
+                      'assets/animation/loader.json',
+                      height: screenHeight * 0.15,
+                      width: screenWidth * 0.25,
+                    ),
                   ),
                 if (_isContentLoading)
                   Padding(
-                    padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.025),
+                    padding: EdgeInsets.symmetric(vertical: screenHeight * 0.025),
                     child: Lottie.asset(
-                      'assets/animation/AnimationAI - 1742427483513.json',
-                      height: MediaQuery.of(context).size.height * 0.15,
-                      width: MediaQuery.of(context).size.width * 0.25,
+                      'assets/animation/loader.json',
+                      height: screenHeight * 0.15,
+                      width: screenWidth * 0.25,
                     ),
                   )
                 else if (_displayedMedicines.isEmpty)
                   Padding(
-                    padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
-                    child: const Center(child: Text('No medicines available')),
+                    padding: EdgeInsets.all(screenWidth * 0.05),
+                    child: Text(
+                      'No medicines available',
+                      style: TextStyle(fontSize: screenWidth * 0.04),
+                    ),
                   )
                 else
                   Column(
@@ -1318,15 +1761,14 @@ Now, analyze the image and return the list of medicine names with accurate spell
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         padding: EdgeInsets.symmetric(
-                          horizontal: MediaQuery.of(context).size.width * 0.025,
-                          vertical: MediaQuery.of(context).size.height * 0.015,
+                          horizontal: screenWidth * 0.025,
+                          vertical: screenHeight * 0.015,
                         ),
-                        cacheExtent: 1000.0,
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: MediaQuery.of(context).size.width * 0.030,
-                          mainAxisSpacing: MediaQuery.of(context).size.height * 0.015,
-                          childAspectRatio: 0.75,
+                          crossAxisCount: screenWidth > 600 ? 3 : 2,
+                          crossAxisSpacing: screenWidth * 0.030,
+                          mainAxisSpacing: screenHeight * 0.015,
+                          childAspectRatio: screenWidth > 600 ? 0.8 : 0.75,
                         ),
                         itemCount: _displayedMedicines.length,
                         itemBuilder: (context, index) {
@@ -1336,27 +1778,27 @@ Now, analyze the image and return the list of medicine names with accurate spell
                       ),
                       if (_displayedMedicines.length < _allMedicines.length)
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.025),
+                          padding: EdgeInsets.symmetric(vertical: screenHeight * 0.025),
                           child: ElevatedButton(
                             onPressed: _loadMoreMedicines,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8 * screenWidth / 360)),
                               padding: EdgeInsets.symmetric(
-                                horizontal: MediaQuery.of(context).size.width * 0.05,
-                                vertical: MediaQuery.of(context).size.height * 0.015,
+                                horizontal: screenWidth * 0.05,
+                                vertical: screenHeight * 0.015,
                               ),
                             ),
                             child: Text(
                               'Load More',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: MediaQuery.of(context).size.width * 0.04,
+                                fontSize: screenWidth * 0.04,
                               ),
                             ),
                           ),
                         ),
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+                      SizedBox(height: screenHeight * 0.1),
                     ],
                   ),
               ],
@@ -1372,75 +1814,101 @@ Now, analyze the image and return the list of medicine names with accurate spell
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Select Delivery Address'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                if (_addresses.isEmpty)
-                  const Text('No addresses found.')
-                else
-                  ..._addresses.map((address) {
-                    String fullAddress =
-                        '${address['details']}, ${address['city']}, ${address['governorate']}, ${address['country']}';
-                    return ListTile(
-                      title: Text(fullAddress),
-                      onTap: () {
-                        setState(() {
-                          _selectedAddress = fullAddress;
-                        });
-                        Navigator.pop(context);
+        return AnimatedScale(
+          scale: 1.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 300),
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * MediaQuery.of(context).size.width / 360)),
+              backgroundColor: Colors.white,
+              title: Text(
+                'Select Delivery Address',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18 * MediaQuery.of(context).size.width / 360),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    if (_addresses.isEmpty)
+                      Text(
+                        'No addresses found.',
+                        style: TextStyle(fontSize: 16 * MediaQuery.of(context).size.width / 360),
+                      )
+                    else
+                      ..._addresses.map((address) {
+                        String fullAddress =
+                            '${address['details']}, ${address['city']}, ${address['governorate']}, ${address['country']}';
+                        return ListTile(
+                          title: Text(
+                            fullAddress,
+                            style: TextStyle(fontSize: 14 * MediaQuery.of(context).size.width / 360),
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedAddress = fullAddress;
+                            });
+                            Navigator.pop(context);
+                          },
+                        );
+                      }).toList(),
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.015),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddressManagementPage(email: widget.email),
+                          ),
+                        );
+                        if (result == true) {
+                          await _fetchAddressesFromFirebase();
+                          if (_addresses.isNotEmpty) {
+                            String newAddress =
+                                '${_addresses.last['details']}, ${_addresses.last['city']}, ${_addresses.last['governorate']}, ${_addresses.last['country']}';
+                            setState(() {
+                              _selectedAddress = newAddress;
+                            });
+                          }
+                          Navigator.pop(context);
+                        }
                       },
-                    );
-                  }).toList(),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.015),
-                ElevatedButton(
-                  onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AddressManagementPage(email: widget.email),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8 * MediaQuery.of(context).size.width / 360)),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: MediaQuery.of(context).size.width * 0.05,
+                          vertical: MediaQuery.of(context).size.height * 0.015,
+                        ),
                       ),
-                    );
-                    if (result == true) {
-                      await _fetchAddressesFromFirebase();
-                      if (_addresses.isNotEmpty) {
-                        String newAddress =
-                            '${_addresses.last['details']}, ${_addresses.last['city']}, ${_addresses.last['governorate']}, ${_addresses.last['country']}';
-                        setState(() {
-                          _selectedAddress = newAddress;
-                        });
-                      }
-                      Navigator.pop(context);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: MediaQuery.of(context).size.width * 0.05,
-                      vertical: MediaQuery.of(context).size.height * 0.015,
+                      child: Text(
+                        'Add New Address',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: MediaQuery.of(context).size.width * 0.04,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
                   child: Text(
-                    'Add New Address',
+                    'Cancel',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: MediaQuery.of(context).size.width * 0.04,
+                      color: Colors.grey,
+                      fontSize: 16 * MediaQuery.of(context).size.width / 360,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
         );
       },
     );
@@ -1456,7 +1924,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
             backgroundColor: Colors.white,
             minimumSize: Size(0, buttonHeight),
             padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.015),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8 * MediaQuery.of(context).size.width / 360)),
             side: const BorderSide(color: Colors.blue),
           ),
           child: Column(
@@ -1483,6 +1951,7 @@ Now, analyze the image and return the list of medicine names with accurate spell
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     _removeOverlay();
     _timer?.cancel();

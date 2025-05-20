@@ -28,6 +28,14 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  flutter_pdfview: ^1.4.0+1
+  pdf: ^3.11.0
+  fl_chart: ^0.68.0
+  connectivity_plus: ^6.0.5
+  agora_rtc_engine: ^6.3.0
+  permission_handler: ^11.0.0
+  flutter_dotenv: ^5.1.0
+  google_generative_ai: ^0.4.0 # لاستخدام Gemini API
   cached_network_image: ^3.3.1
   share_plus: ^10.0.0
   badges: ^3.0.2
@@ -91,10 +99,19 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
+    - assets/Doctors/Dr. Mohamed Abdel Rahman.png
+    - assets/Doctors/Dr. Aya Khaled.png
+    - assets/Doctors/
+    - assets/footer_image.png
+    - assets/logowhite.png
+    - assets/images/default_doctor.png
+    - assets/Eye_analysis.png
+    - assets/Blood_test_analysis.png
     - assets/icon/
     - assets/animation/AnimationPharmacy1743042089415.json
     - assets/Shamel.png
-    -  assets/animation/AnimationAI - 1742427483513.json
+    - assets/animation/loader.json
+    - assets/animation/AnimationAI - 1742427483513.json
     - assets/animation/payment- 1742531789909.json
     - assets/animation/AI1742427287201.json
     - assets/pneumonia_analysis.png

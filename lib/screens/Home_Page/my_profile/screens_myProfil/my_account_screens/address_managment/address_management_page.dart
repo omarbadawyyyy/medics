@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../../home_care/Doctor_visit.dart';
 import 'manual_address_page.dart';
-import 'map_picker_page.dart'; // التأكد من استيراد MapPickerPage
+import 'map_picker_page.dart';
 
 class AddressManagementPage extends StatefulWidget {
   final String email;
+  final String? source;
+  final String? specialty; // إضافة specialty
 
-  AddressManagementPage({required this.email});
+  const AddressManagementPage({
+    required this.email,
+    this.source,
+    this.specialty,
+  });
 
   @override
   _AddressManagementPageState createState() => _AddressManagementPageState();
@@ -68,7 +75,7 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
           var offsetAnimation = animation.drive(tween);
           return SlideTransition(position: offsetAnimation, child: child);
         },
-        transitionDuration: Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 500),
       ),
     );
     if (result == true) _fetchAddresses();
@@ -79,16 +86,16 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
       bool? confirm = await showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Confirm Delete'),
-          content: Text('Are you sure you want to delete this address?'),
+          title: const Text('Confirm Delete'),
+          content: const Text('Are you sure you want to delete this address?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text('Delete'),
+              child: const Text('Delete'),
             ),
           ],
         ),
@@ -113,7 +120,7 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Address deleted successfully')),
+          const SnackBar(content: Text('Address deleted successfully')),
         );
       }
     } catch (e) {
@@ -125,15 +132,40 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
     }
   }
 
+  void _selectAddress(int index) {
+    if (widget.source == 'doctor_visit') {
+      var address = addresses[index];
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => DoctorVisitPage(
+            email: widget.email,
+            selectedAddress: address,
+            specialty: widget.specialty ?? 'General', // تمرير specialty مع fallback
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOut;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var offsetAnimation = animation.drive(tween);
+            return SlideTransition(position: offsetAnimation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'Manage Addresses',
           style: TextStyle(color: Colors.white),
         ),
@@ -141,30 +173,30 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
         elevation: 0,
       ),
       body: isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
         onRefresh: _fetchAddresses,
         child: Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Add New Address',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  contentPadding: EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
                   leading: Icon(Icons.edit, color: Colors.blue[900], size: 30),
-                  title: Text(
+                  title: const Text(
                     'Enter Address Manually',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                   ),
-                  trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
                   onTap: () async {
                     final result = await Navigator.push(
                       context,
@@ -181,25 +213,25 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
                           var offsetAnimation = animation.drive(tween);
                           return SlideTransition(position: offsetAnimation, child: child);
                         },
-                        transitionDuration: Duration(milliseconds: 500),
+                        transitionDuration: const Duration(milliseconds: 500),
                       ),
                     );
                     if (result == true) _fetchAddresses();
                   },
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  contentPadding: EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
                   leading: Icon(Icons.map, color: Colors.blue[900], size: 30),
-                  title: Text(
+                  title: const Text(
                     'Pick Address from Map',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                   ),
-                  trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
                   onTap: () async {
                     final result = await Navigator.push(
                       context,
@@ -216,22 +248,22 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
                           var offsetAnimation = animation.drive(tween);
                           return SlideTransition(position: offsetAnimation, child: child);
                         },
-                        transitionDuration: Duration(milliseconds: 500),
+                        transitionDuration: const Duration(milliseconds: 500),
                       ),
                     );
                     if (result == true) _fetchAddresses();
                   },
                 ),
               ),
-              SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 16),
+              const Text(
                 'Saved Addresses',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Expanded(
                 child: addresses.isEmpty
-                    ? Center(child: Text('No saved addresses yet'))
+                    ? const Center(child: Text('No saved addresses yet'))
                     : ListView.builder(
                   itemCount: addresses.length,
                   itemBuilder: (context, index) {
@@ -240,16 +272,19 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
                       elevation: 2,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
-                      margin: EdgeInsets.symmetric(vertical: 8.0),
+                      margin: const EdgeInsets.symmetric(vertical: 8.0),
                       child: ListTile(
-                        contentPadding: EdgeInsets.all(16.0),
+                        contentPadding: const EdgeInsets.all(16.0),
                         title: Text(
                           '${address['details']}, ${address['city']}, ${address['governorate']}, ${address['country']}',
-                          style: TextStyle(fontSize: 16),
+                          style: const TextStyle(fontSize: 16),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: Row(
+                        onTap: () => _selectAddress(index),
+                        trailing: widget.source == 'doctor_visit'
+                            ? null
+                            : Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
@@ -257,7 +292,7 @@ class _AddressManagementPageState extends State<AddressManagementPage> {
                               onPressed: () => _editAddress(index),
                             ),
                             IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
+                              icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () => _deleteAddress(index),
                             ),
                           ],

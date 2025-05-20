@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:medics/screens/login/signupPage.dart';
 import '../Home_Page/Home_page.dart';
+import '../DoctorDashboard/doctor_dashboard.dart';
 import 'forgotPasswordPage.dart';
 
 class LoginPage extends StatefulWidget {
@@ -36,43 +38,89 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      // تسجيل الدخول باستخدام Firebase
+      // تسجيل الدخول باستخدام Firebase Authentication
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // جلب بيانات المستخدم من Firebase Authentication
+      // الحصول على المستخدم المسجل الدخول
       User? user = userCredential.user;
       if (user != null) {
         String userEmail = user.email ?? '';
-        String userName = user.displayName ?? ''; // الاسم لو متاح
-        String userPhone = user.phoneNumber ?? ''; // رقم الهاتف لو متاح
-        String? userPhotoUrl = user.photoURL; // رابط الصورة لو متاح
+        String userPhone = user.phoneNumber ?? '';
+        String? userPhotoUrl = user.photoURL;
 
-        // رسالة نجاح
+        // التحقق مما إذا كان المستخدم طبيبًا أو مستخدمًا عاديًا بالاستعلام عن Firestore
+        final firestore = FirebaseFirestore.instance;
+
+        // استعلام مجموعة 'doctors'
+        QuerySnapshot doctorSnapshot = await firestore
+            .collection('doctors')
+            .where('email', isEqualTo: userEmail)
+            .get();
+
+        // استعلام مجموعة 'users'
+        QuerySnapshot userSnapshot = await firestore
+            .collection('users')
+            .where('email', isEqualTo: userEmail)
+            .get();
+
+        // جلب الاسم من Firestore إذا كان الدكتور موجود
+        String userName = '';
+        if (doctorSnapshot.docs.isNotEmpty) {
+          userName = doctorSnapshot.docs.first['name'] ?? 'Unknown Doctor';
+        } else if (userSnapshot.docs.isNotEmpty) {
+          userName = userSnapshot.docs.first['name'] ?? 'Unknown User';
+        }
+
+        // عرض رسالة النجاح
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Login Successful")));
 
-        // الانتقال لصفحة HomePage مع تمرير كل البيانات
+        // التوجيه بناءً على نوع المستخدم
         Future.delayed(Duration(seconds: 1), () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomePage(
-                email: userEmail,
-                name: userName,
-                phone: userPhone,
-                imagePath: userPhotoUrl,
+          if (doctorSnapshot.docs.isNotEmpty) {
+            // إذا كان البريد موجودًا في مجموعة الأطباء، توجّه إلى DoctorDashboard
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DoctorDashboard(
+                  email: userEmail,
+                  name: userName,
+                  phone: userPhone,
+                  imagePath: userPhotoUrl,
+                  doctorEmail: userEmail,
+                ),
               ),
-            ),
-          );
+            );
+          } else if (userSnapshot.docs.isNotEmpty) {
+            // إذا كان البريد موجودًا في مجموعة المستخدمين، توجّه إلى HomePage
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomePage(
+                  email: userEmail,
+                  name: userName,
+                  phone: userPhone,
+                  imagePath: userPhotoUrl,
+                ),
+              ),
+            );
+          } else {
+            // إذا لم يكن البريد موجودًا في أي مجموعة، اعرض رسالة خطأ
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("User not found in doctors or users collection.")),
+            );
+          }
         });
       }
     } catch (e) {
       setState(() {
         _isPasswordError = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Incorrect password. Please try again.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Incorrect password. Please try again.")),
+      );
     } finally {
       setState(() {
         _isLoading = false;

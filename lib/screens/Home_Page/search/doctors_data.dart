@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 // Review class to store comment, stars, and reviewer name
@@ -11,6 +12,22 @@ class Review {
     required this.stars,
     required this.reviewerName,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'comment': comment,
+      'stars': stars,
+      'reviewerName': reviewerName,
+    };
+  }
+
+  factory Review.fromMap(Map<String, dynamic> map) {
+    return Review(
+      comment: map['comment'] ?? '',
+      stars: map['stars'] ?? 0,
+      reviewerName: map['reviewerName'] ?? '',
+    );
+  }
 }
 
 class Doctor {
@@ -43,9 +60,78 @@ class Doctor {
     this.bio,
     this.reviews,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'specialty': specialty,
+      'rating': rating,
+      'numberOfReviews': numberOfReviews,
+      'trait': trait,
+      'location': location,
+      'fees': fees,
+      'waitingTimeMinutes': waitingTimeMinutes,
+      'availability': availability,
+      'isSponsored': isSponsored,
+      'imageUrl': imageUrl,
+      'bio': bio,
+      'reviews': reviews?.map((review) => review.toMap()).toList(),
+    };
+  }
+
+  factory Doctor.fromMap(Map<String, dynamic> map) {
+    return Doctor(
+      name: map['name'] ?? '',
+      specialty: map['specialty'] ?? '',
+      rating: (map['rating'] ?? 0.0).toDouble(),
+      numberOfReviews: map['numberOfReviews'] ?? 0,
+      trait: map['trait'] ?? '',
+      location: map['location'] ?? '',
+      fees: (map['fees'] ?? 0.0).toDouble(),
+      waitingTimeMinutes: map['waitingTimeMinutes'] ?? 0,
+      availability: map['availability'] ?? '',
+      isSponsored: map['isSponsored'] ?? false,
+      imageUrl: map['imageUrl'] ?? '',
+      bio: map['bio'],
+      reviews: map['reviews'] != null
+          ? List<Review>.from(map['reviews'].map((x) => Review.fromMap(x)))
+          : null,
+    );
+  }
 }
 
 class DoctorsData extends StatelessWidget {
+  // Static list to store all doctors (static + Firestore)
+  static List<Doctor> allDoctors = [];
+
+  // Static list of specialties derived from doctors
+  static final List<String> specialties = [
+    'Cardiology',
+    'Dentistry',
+    'Dermatology',
+    'Ear (ENT)',
+    'Gynecology',
+    'Internal Medicine',
+    'Neurology',
+    'Orthopedics',
+    'Pediatrics',
+    'Psychiatry',
+  ];
+
+  // Function to remove duplicate doctors based on name and specialty
+  List<Doctor> _removeDuplicates(List<Doctor> doctorsList) {
+    final seen = <String>{};
+    final uniqueDoctors = <Doctor>[];
+    for (var doctor in doctorsList) {
+      final key = '${doctor.name}-${doctor.specialty}';
+      if (!seen.contains(key)) {
+        seen.add(key);
+        uniqueDoctors.add(doctor);
+      }
+    }
+    return uniqueDoctors;
+  }
+
   static final List<Doctor> doctors = [
     Doctor(
       name: 'Dr. Ahmed Khaled',
@@ -58,7 +144,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 30,
       availability: 'Sun, 27 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ahmed_khaled.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ahmed Khaled.png',
       bio: 'Dr. Ahmed Khaled specializes in cardiovascular health, with expertise in managing heart conditions and preventive care over 12 years.',
       reviews: [
         Review(comment: 'Very caring and thorough, explained everything clearly.', stars: 5, reviewerName: 'Mohamed Ali'),
@@ -79,7 +165,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Mon, 28 Apr 03:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_fatima_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Fatima Mostafa.png',
       bio: 'With 15 years in cardiology, Dr. Fatima excels in treating complex heart diseases, focusing on personalized care and patient education.',
       reviews: [
         Review(comment: 'Amazing doctor, very attentive and professional.', stars: 5, reviewerName: 'Aya Mahmoud'),
@@ -100,7 +186,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Tue, 29 Apr 01:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_omar_hassan.jpg',
+      imageUrl: 'assets/Doctors/Dr. Omar Hassan.png',
       bio: 'Dr. Omar Hassan is a compassionate cardiologist specializing in heart failure management and non-invasive diagnostics, ensuring empathetic care.',
       reviews: [
         Review(comment: 'Very understanding, great experience.', stars: 5, reviewerName: 'Mona Salah'),
@@ -121,7 +207,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Wed, 30 Apr 04:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_nour_eldin.jpg',
+      imageUrl: 'assets/Doctors/Dr. Nour El Din.png',
       bio: 'Dr. Nour El Din offers expert cardiology care, specializing in arrhythmia treatment and cardiac rehabilitation with a warm demeanor.',
       reviews: [
         Review(comment: 'Very friendly and professional.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -142,7 +228,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Thu, 01 May 02:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_sara_abdelrahman.jpg',
+      imageUrl: 'assets/Doctors/Dr. Sara Abdel Rahman.png',
       bio: 'Dr. Sara is a dedicated cardiologist with a focus on interventional cardiology and patient wellness, with over 10 years of experience.',
       reviews: [
         Review(comment: 'Extremely professional and caring.', stars: 5, reviewerName: 'Mona Salah'),
@@ -163,7 +249,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 20,
       availability: 'Sat, 26 Apr 10:00 AM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_mohamed_ali.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mohamed Ali.png',
       bio: 'Dr. Mohamed Ali is a skilled dentist specializing in cosmetic dentistry and oral health, known for his gentle and caring approach.',
       reviews: [
         Review(comment: 'Gentle and professional, great dentist.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -184,7 +270,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 25,
       availability: 'Sun, 27 Apr 11:00 AM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_aya_mahmoud.jpg',
+      imageUrl: 'assets/Doctors/Dr. Aya Mahmoud.png',
       bio: 'Dr. Aya Mahmoud excels in restorative dentistry, providing high-quality care with a focus on patient comfort and satisfaction.',
       reviews: [
         Review(comment: 'Very skilled, amazing results.', stars: 5, reviewerName: 'Mona Salah'),
@@ -205,7 +291,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 30,
       availability: 'Mon, 28 Apr 09:00 AM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_khaled_samir.jpg',
+      imageUrl: 'assets/Doctors/Dr. Khaled Samir.png',
       bio: 'Dr. Khaled Samir is a patient-focused dentist with expertise in orthodontics and preventive dental care, ensuring a comfortable experience.',
       reviews: [
         Review(comment: 'Patient and professional, great dentist.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -226,7 +312,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 15,
       availability: 'Tue, 29 Apr 12:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_laila_ibrahim.jpg',
+      imageUrl: 'assets/Doctors/Dr. Laila Ibrahim.png',
       bio: 'Dr. Laila Ibrahim specializes in pediatric dentistry, creating a friendly environment for patients with her warm and professional approach.',
       reviews: [
         Review(comment: 'Amazing with kids, very friendly.', stars: 5, reviewerName: 'Mona Salah'),
@@ -247,7 +333,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 20,
       availability: 'Wed, 30 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_youssef_hamed.jpg',
+      imageUrl: 'assets/Doctors/Dr. Youssef Hamed.png',
       bio: 'Dr. Youssef Hamed is a leading dentist in implantology and cosmetic procedures, delivering exceptional results with professionalism.',
       reviews: [
         Review(comment: 'Professional and skilled, amazing implants.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -268,7 +354,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 51,
       availability: 'Sat, 26 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_mayada_alashry.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mayada Alashry.png',
       bio: 'Dr. Mayada Alashry is a dermatologist specializing in skin rejuvenation and allergy treatment, known for her attentive and caring approach.',
       reviews: [
         Review(comment: 'Very attentive, cleared my skin issues.', stars: 5, reviewerName: 'Mona Salah'),
@@ -289,7 +375,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Sun, 27 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_hala_gamal.jpg',
+      imageUrl: 'assets/Doctors/Dr. Hala Gamal.png',
       bio: 'Dr. Hala Gamal offers advanced dermatological care, focusing on acne treatment and cosmetic dermatology with a patient-first mindset.',
       reviews: [
         Review(comment: 'Skilled and professional, great results.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -298,7 +384,6 @@ class DoctorsData extends StatelessWidget {
         Review(comment: 'Friendly and thorough.', stars: 5, reviewerName: 'Sherif Mahmoud'),
         Review(comment: 'Average experience, long wait.', stars: 3, reviewerName: 'Tarek Abdel Aziz'),
       ],
-
     ),
     Doctor(
       name: 'Dr. Amr Mostafa',
@@ -311,7 +396,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Mon, 28 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_amr_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Amr Mostafa.png',
       bio: 'With 14 years of experience, Dr. Amr Mostafa specializes in psoriasis and skin cancer screening, providing thorough and expert care.',
       reviews: [
         Review(comment: 'Very experienced, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -332,7 +417,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Tue, 29 Apr 04:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_rana_ahmed.jpg',
+      imageUrl: 'assets/Doctors/Dr. Rana Ahmed.png',
       bio: 'Dr. Rana Ahmed is a friendly dermatologist with expertise in laser treatments and skin care, ensuring a welcoming patient experience.',
       reviews: [
         Review(comment: 'Friendly and skilled, amazing results.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -353,7 +438,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Wed, 30 Apr 01:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_sherif_mahmoud.jpg',
+      imageUrl: 'assets/Doctors/Dr. Sherif Mahmoud.png',
       bio: 'Dr. Sherif Mahmoud provides professional dermatological care, specializing in chronic skin conditions and aesthetic treatments.',
       reviews: [
         Review(comment: 'Professional and knowledgeable.', stars: 5, reviewerName: 'Mona Salah'),
@@ -374,7 +459,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 30,
       availability: 'Sat, 26 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_tarek_abdelaziz.jpg',
+      imageUrl: 'assets/Doctors/Dr. Tarek Abdel Aziz.png',
       bio: 'Dr. Tarek Abdel Aziz is an ENT specialist with a focus on sinus disorders and hearing loss, known for his patient-centered care.',
       reviews: [
         Review(comment: 'Very patient and thorough.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -395,7 +480,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 25,
       availability: 'Sun, 27 Apr 04:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_mona_salah.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mona Salah.png',
       bio: 'Dr. Mona Salah excels in treating throat and ear conditions, offering skilled and compassionate care with advanced diagnostic techniques.',
       reviews: [
         Review(comment: 'Skilled and caring, great experience.', stars: 5, reviewerName: 'Mona Salah'),
@@ -416,14 +501,13 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 20,
       availability: 'Mon, 28 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ali_hamed.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ali Hamed.png',
       bio: 'Dr. Ali Hamed is a friendly ENT specialist specializing in pediatric ENT issues, creating a comfortable environment for patients.',
       reviews: [
         Review(comment: 'Very friendly, great with kids.', stars: 5, reviewerName: 'Hala Gamal'),
         Review(comment: 'Good care, but clinic was small.', stars: 4, reviewerName: 'Amr Mostafa'),
         Review(comment: 'Professional and thorough.', stars: 5, reviewerName: 'Rana Ahmed'),
         Review(comment: 'Helped my child a lot.', stars: 5, reviewerName: 'Sherif Mahmoud'),
-        Review(comment: 'Average experience, long wait.', stars: 3, reviewerName: 'Tarek Abdel Aziz'),
       ],
     ),
     Doctor(
@@ -437,7 +521,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Tue, 29 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_nourhan_mohamed.jpg',
+      imageUrl: 'assets/Doctors/Dr. Nourhan Mohamed.png',
       bio: 'Dr. Nourhan Mohamed provides professional ENT care, with expertise in minimally invasive sinus surgeries and patient wellness.',
       reviews: [
         Review(comment: 'Professional and skilled, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -458,7 +542,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Wed, 30 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_khaled_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Khaled Mostafa.png',
       bio: 'With over 10 years in ENT, Dr. Khaled Mostafa specializes in voice disorders and advanced diagnostic procedures.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -469,7 +553,7 @@ class DoctorsData extends StatelessWidget {
       ],
     ),
     Doctor(
-      name: 'Dr. Amal Fathy',
+      name: 'Dr. Hamed Fathy',
       specialty: 'Gynecology',
       rating: 4.9,
       numberOfReviews: 1400,
@@ -479,7 +563,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Sat, 26 Apr 02:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_amal_fathy.jpg',
+      imageUrl: 'assets/Doctors/Dr. Hamed Fathy.png',
       bio: 'Dr. Amal Fathy is a compassionate gynecologist specializing in women’s health, prenatal care, and minimally invasive surgeries.',
       reviews: [
         Review(comment: 'Very compassionate, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -490,7 +574,7 @@ class DoctorsData extends StatelessWidget {
       ],
     ),
     Doctor(
-      name: 'Dr. Salma Youssef',
+      name: 'Dr. Mohab Youssef',
       specialty: 'Gynecology',
       rating: 4.8,
       numberOfReviews: 1100,
@@ -498,9 +582,9 @@ class DoctorsData extends StatelessWidget {
       location: 'Alexandria: Roushdy',
       fees: 190.0,
       waitingTimeMinutes: 40,
-      availability: 'Sun, 27 Apr 03 кандидат: 00 PM',
+      availability: 'Sun, 27 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_salma_youssef.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mohab Youssef.png',
       bio: 'Dr. Salma Youssef provides expert gynecological care, focusing on fertility treatments and patient-centered reproductive health.',
       reviews: [
         Review(comment: 'Skilled and professional, great care.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -521,7 +605,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Mon, 28 Apr 01:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_hoda_abdelrahman.jpg',
+      imageUrl: 'assets/Doctors/Dr. Hoda Abdel Rahman.png',
       bio: 'Dr. Hoda Abdel Rahman is a friendly gynecologist with expertise in menopause management and adolescent gynecology.',
       reviews: [
         Review(comment: 'Very friendly, great experience.', stars: 5, reviewerName: 'Mona Salah'),
@@ -542,7 +626,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Tue, 29 Apr 02:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_mariam_khaled.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mariam Khaled.png',
       bio: 'Dr. Mariam Khaled offers professional gynecological services, specializing in high-risk pregnancies and advanced diagnostic techniques.',
       reviews: [
         Review(comment: 'Professional and thorough, amazing care.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -553,7 +637,7 @@ class DoctorsData extends StatelessWidget {
       ],
     ),
     Doctor(
-      name: 'Dr. Fatma Mostafa',
+      name: 'Dr. Khaled Ahmed',
       specialty: 'Gynecology',
       rating: 4.6,
       numberOfReviews: 800,
@@ -563,7 +647,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Wed, 30 Apr 04:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_fatma_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Khaled Ahmed.png',
       bio: 'With 12 years of experience, Dr. Fatma Mostafa focuses on women’s wellness and preventive gynecological care.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Mona Salah'),
@@ -584,7 +668,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 30,
       availability: 'Sat, 26 Apr 01:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_mahmoud_samir.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mahmoud Samir.png',
       bio: 'Dr. Mahmoud Samir is a patient-focused internist specializing in chronic disease management and preventive care.',
       reviews: [
         Review(comment: 'Very patient and thorough.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -595,7 +679,7 @@ class DoctorsData extends StatelessWidget {
       ],
     ),
     Doctor(
-      name: 'Dr. Nourhan Ali',
+      name: 'Dr. Samir Ali',
       specialty: 'Internal Medicine',
       rating: 4.8,
       numberOfReviews: 1000,
@@ -605,7 +689,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Sun, 27 Apr 02:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_nourhan_ali.jpg',
+      imageUrl: 'assets/Doctors/Dr. Samir Ali.png',
       bio: 'Dr. Nourhan Ali excels in internal medicine, with a focus on diabetes management and comprehensive health assessments.',
       reviews: [
         Review(comment: 'Skilled and professional, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -626,7 +710,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 25,
       availability: 'Mon, 28 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ahmed_gamal.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ahmed Gamal.png',
       bio: 'Dr. Ahmed Gamal is a friendly internist specializing in gastrointestinal disorders and patient education.',
       reviews: [
         Review(comment: 'Very friendly, great experience.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -637,7 +721,7 @@ class DoctorsData extends StatelessWidget {
       ],
     ),
     Doctor(
-      name: 'Dr. Sara Mohamed',
+      name: 'Dr. Gamal Mohamed',
       specialty: 'Internal Medicine',
       rating: 4.9,
       numberOfReviews: 1200,
@@ -647,7 +731,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Tue, 29 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_sara_mohamed.jpg',
+      imageUrl: 'assets/Doctors/Dr. Gamal Mohamed.png',
       bio: 'Dr. Sara Mohamed provides professional internal medicine care, with expertise in hypertension and metabolic disorders.',
       reviews: [
         Review(comment: 'Professional and thorough, amazing care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -668,7 +752,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Wed, 30 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_khaled_abdelaziz.jpg',
+      imageUrl: 'assets/Doctors/Dr. Khaled Abdel Aziz.png',
       bio: 'With over 10 years in internal medicine, Dr. Khaled specializes in autoimmune diseases and holistic care.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -689,7 +773,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Sat, 26 Apr 03:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_omar_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Omar Mostafa.png',
       bio: 'Dr. Omar Mostafa is a skilled neurologist specializing in epilepsy and stroke management with advanced diagnostic techniques.',
       reviews: [
         Review(comment: 'Skilled and professional, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -700,7 +784,7 @@ class DoctorsData extends StatelessWidget {
       ],
     ),
     Doctor(
-      name: 'Dr. Hala Mahmoud',
+      name: 'Dr. Mostafa Mahmoud',
       specialty: 'Neurology',
       rating: 4.7,
       numberOfReviews: 900,
@@ -710,8 +794,8 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Sun, 27 Apr 04:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_hala_mahmoud.jpg',
-      bio: 'Dr. Hala Mahmoud provides patient-focused neurological care, with expertise in migraine treatment and neurorehabilitation.',
+      imageUrl: 'assets/Doctors/Dr. Mostafa Mahmoud.png',
+      bio: 'Dr. Mostafa Mahmoud provides patient-focused neurological care, with expertise in migraine treatment and neurorehabilitation.',
       reviews: [
         Review(comment: 'Very patient and thorough.', stars: 5, reviewerName: 'Hala Gamal'),
         Review(comment: 'Good care, but clinic was busy.', stars: 4, reviewerName: 'Amr Mostafa'),
@@ -731,7 +815,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Mon, 28 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ali_abdelrahman.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ali Abdel Rahman.png',
       bio: 'Dr. Ali Abdel Rahman is a friendly neurologist specializing in Parkinson’s disease and patient-centered care.',
       reviews: [
         Review(comment: 'Very friendly, great experience.', stars: 5, reviewerName: 'Mona Salah'),
@@ -752,7 +836,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 55,
       availability: 'Tue, 29 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_nourhan_khaled.jpg',
+      imageUrl: 'assets/Doctors/Dr. Nourhan Khaled.png',
       bio: 'Dr. Nourhan Khaled offers professional neurological care, with a focus on multiple sclerosis and advanced neuroimaging.',
       reviews: [
         Review(comment: 'Professional and thorough, amazing care.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -773,7 +857,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Wed, 30 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ahmed_fathy.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ahmed Fathy.png',
       bio: 'With 12 years of experience, Dr. Ahmed Fathy specializes in neuropathy and comprehensive neurological assessments.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Mona Salah'),
@@ -794,7 +878,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Sat, 26 Apr 02:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_mohamed_abdelaziz.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mohamed Abdel Aziz.png',
       bio: 'Dr. Mohamed Abdel Aziz is a skilled orthopedic surgeon specializing in joint replacement and sports injuries.',
       reviews: [
         Review(comment: 'Skilled and professional, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -815,7 +899,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Sun, 27 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_aya_gamal.jpg',
+      imageUrl: 'assets/Doctors/Dr. Aya Gamal.png',
       bio: 'Dr. Aya Gamal provides patient-focused orthopedic care, with expertise in fracture management and rehabilitation.',
       reviews: [
         Review(comment: 'Very patient and thorough.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -836,7 +920,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 30,
       availability: 'Mon, 28 Apr 01:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_khaled_mahmoud.jpg',
+      imageUrl: 'assets/Doctors/Dr. Khaled Mahmoud.png',
       bio: 'Dr. Khaled Mahmoud is a friendly orthopedist specializing in spine disorders and minimally invasive surgeries.',
       reviews: [
         Review(comment: 'Very friendly, great experience.', stars: 5, reviewerName: 'Mona Salah'),
@@ -857,7 +941,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Tue, 29 Apr 02:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_sara_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Sara Mostafa.png',
       bio: 'Dr. Sara Mostafa offers professional orthopedic care, with a focus on pediatric orthopedics and trauma care.',
       reviews: [
         Review(comment: 'Professional and thorough, amazing care.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -878,7 +962,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Wed, 30 Apr 04:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ahmed_hamed.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ahmed Hamed.png',
       bio: 'With 10 years of experience, Dr. Ahmed Hamed specializes in arthroscopic surgeries and orthopedic rehabilitation.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Mona Salah'),
@@ -899,7 +983,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 35,
       availability: 'Sat, 26 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_fatima_ali.jpg',
+      imageUrl: 'assets/Doctors/Dr. Fatima Ali.png',
       bio: 'Dr. Fatima Ali is a compassionate pediatrician specializing in child development and preventive care for infants and children.',
       reviews: [
         Review(comment: 'Very compassionate, great with kids.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -920,7 +1004,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 30,
       availability: 'Sun, 27 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_nourhan_gamal.jpg',
+      imageUrl: 'assets/Doctors/Dr. Nourhan Gamal.png',
       bio: 'Dr. Nourhan Gamal excels in pediatric care, with a focus on infectious diseases and vaccination programs.',
       reviews: [
         Review(comment: 'Skilled and professional, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -941,7 +1025,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 25,
       availability: 'Mon, 28 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_mohamed_abdelrahman.jpg',
+      imageUrl: 'assets/Doctors/Dr. Mohamed Abdel Rahman.png',
       bio: 'Dr. Mohamed Abdel Rahman is a friendly pediatrician specializing in neonatal care and parent education.',
       reviews: [
         Review(comment: 'Very friendly, great experience.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -962,7 +1046,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Tue, 29 Apr 01:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_aya_khaled.jpg',
+      imageUrl: 'assets/Doctors/Dr. Aya Khaled.png',
       bio: 'Dr. Aya Khaled provides professional pediatric care, with expertise in pediatric allergies and asthma management.',
       reviews: [
         Review(comment: 'Professional and thorough, amazing care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -983,7 +1067,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Wed, 30 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ahmed_mostafa.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ahmed Mostafa.png',
       bio: 'With 12 years of experience, Dr. Ahmed Mostafa specializes in pediatric nutrition and growth disorders.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -1004,7 +1088,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Sat, 26 Apr 03:00 PM',
       isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_hala_fathy.jpg',
+      imageUrl: 'assets/Doctors/Dr. Hala Fathy.png',
       bio: 'Dr. Hala Fathy is an empathetic psychiatrist specializing in anxiety disorders and cognitive behavioral therapy.',
       reviews: [
         Review(comment: 'Very empathetic, great care.', stars: 5, reviewerName: 'Mona Salah'),
@@ -1025,7 +1109,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 45,
       availability: 'Sun, 27 Apr 04:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_nourhan_mahmoud.jpg',
+      imageUrl: 'assets/Doctors/Dr. Nourhan Mahmoud.png',
       bio: 'Dr. Nourhan Mahmoud provides patient-focused psychiatric care, with expertise in depression and stress management.',
       reviews: [
         Review(comment: 'Very patient and thorough.', stars: 5, reviewerName: 'Hala Gamal'),
@@ -1046,7 +1130,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 40,
       availability: 'Mon, 28 Apr 02:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ali_gamal.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ali Gamal.png',
       bio: 'Dr. Ali Gamal is a friendly psychiatrist specializing in addiction treatment and mental health counseling.',
       reviews: [
         Review(comment: 'Very friendly, great experience.', stars: 5, reviewerName: 'Mona Salah'),
@@ -1056,27 +1140,7 @@ class DoctorsData extends StatelessWidget {
         Review(comment: 'Clinic needs better organization.', stars: 4, reviewerName: 'Amal Fathy'),
       ],
     ),
-    Doctor(
-      name: 'Dr. Sara Abdel Aziz',
-      specialty: 'Psychiatry',
-      rating: 4.9,
-      numberOfReviews: 1200,
-      trait: 'Professional',
-      location: 'Tanta: El Nady St.',
-      fees: 230.0,
-      waitingTimeMinutes: 55,
-      availability: 'Tue, 29 Apr 01:00 PM',
-      isSponsored: true,
-      imageUrl: 'https://example.com/images/doctor_sara_abdelaziz.jpg',
-      bio: 'Dr. Sara Abdel Aziz offers professional psychiatric care, with a focus on mood disorders and psychotherapy.',
-      reviews: [
-        Review(comment: 'Professional and thorough, amazing care.', stars: 5, reviewerName: 'Hala Gamal'),
-        Review(comment: 'Good service, but slightly expensive.', stars: 4, reviewerName: 'Amr Mostafa'),
-        Review(comment: 'Very skilled, helped with my condition.', stars: 5, reviewerName: 'Rana Ahmed'),
-        Review(comment: 'Excellent doctor, highly recommend.', stars: 5, reviewerName: 'Sherif Mahmoud'),
-        Review(comment: 'Clinic was crowded, but good care.', stars: 4, reviewerName: 'Tarek Abdel Aziz'),
-      ],
-    ),
+
     Doctor(
       name: 'Dr. Ahmed Khaled',
       specialty: 'Psychiatry',
@@ -1088,7 +1152,7 @@ class DoctorsData extends StatelessWidget {
       waitingTimeMinutes: 50,
       availability: 'Wed, 30 Apr 03:00 PM',
       isSponsored: false,
-      imageUrl: 'https://example.com/images/doctor_ahmed_khaled_psych.jpg',
+      imageUrl: 'assets/Doctors/Dr. Ahmed Khaled.png',
       bio: 'With 10 years of experience, Dr. Ahmed Khaled specializes in child psychiatry and behavioral therapy.',
       reviews: [
         Review(comment: 'Experienced and professional.', stars: 5, reviewerName: 'Mona Salah'),
@@ -1106,15 +1170,81 @@ class DoctorsData extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Doctors Data Storage'),
+        title: const Text('Doctors List'),
         backgroundColor: Colors.blue,
       ),
-      body: const Center(
-        child: Text(
-          'This page stores the data of 50 doctors with image URLs and reviews.\nAccess the data via DoctorsData.doctors list.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16),
-        ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('doctors').snapshots(),
+        builder: (context, snapshot) {
+          // Default list of doctors
+          List<Doctor> displayDoctors = List.from(doctors);
+
+          // Add registered doctors from Firestore and update allDoctors
+          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+            final registeredDoctors = snapshot.data!.docs
+                .map((doc) => Doctor.fromMap(doc.data() as Map<String, dynamic>))
+                .toList();
+            displayDoctors.addAll(registeredDoctors);
+            // Update allDoctors with duplicates removed
+            DoctorsData.allDoctors = _removeDuplicates(displayDoctors);
+          } else {
+            // If no data from Firestore, use static doctors only
+            DoctorsData.allDoctors = _removeDuplicates(doctors);
+          }
+
+          // Handle loading and error states
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (displayDoctors.isEmpty) {
+            return const Center(child: Text('No doctors found'));
+          }
+
+          // Display the combined list
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: displayDoctors.length,
+            itemBuilder: (context, index) {
+              final doctor = displayDoctors[index];
+              return Card(
+                elevation: 4,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: ListTile(
+                  leading: doctor.imageUrl.startsWith('assets/')
+                      ? CircleAvatar(
+                    backgroundImage: AssetImage(doctor.imageUrl),
+                  )
+                      : doctor.imageUrl.isNotEmpty
+                      ? CircleAvatar(
+                    backgroundImage: NetworkImage(doctor.imageUrl),
+                    onBackgroundImageError: (error, stackTrace) {
+                      // Fallback to default asset image on network error
+                    },
+                    child: doctor.imageUrl.isEmpty
+                        ? const Icon(Icons.person)
+                        : null,
+                  )
+                      : const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(doctor.name),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(doctor.specialty),
+                      Text('Fees: ${doctor.fees} EGP'),
+                      Text('Rating: ${doctor.rating} (${doctor.numberOfReviews} reviews)'),
+                    ],
+                  ),
+                  onTap: () {
+                    // You can add navigation to a doctor details page here
+                  },
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

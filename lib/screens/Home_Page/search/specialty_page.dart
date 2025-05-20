@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shimmer/shimmer.dart';
 import 'doctors_data.dart';
@@ -18,7 +20,7 @@ class SpecialtyPage extends StatefulWidget {
 class _SpecialtyPageState extends State<SpecialtyPage> {
   List<Doctor>? _filteredDoctors;
   String _searchQuery = '';
-  String _sortOption = 'Rating';
+  String _sortOption = 'Most Recommended';
   Map<String, dynamic> _filters = {};
   bool _isLoading = true;
   int _pageSize = 10;
@@ -27,11 +29,6 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
   @override
   void initState() {
     super.initState();
-    // Debug print to check doctors data
-    print('Doctors count: ${DoctorsData.doctors.length}');
-    for (var doctor in DoctorsData.doctors) {
-      print('Doctor: ${doctor.name}, Bio: ${doctor.bio}, Reviews: ${doctor.reviews?.length ?? 0}');
-    }
     _loadInitialData();
   }
 
@@ -40,29 +37,19 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
       _isLoading = true;
       _filteredDoctors = null;
     });
-    await Future.delayed(const Duration(seconds: 1));
     setState(() {
-      _filteredDoctors = DoctorsData.doctors
-          .where((doctor) => doctor.specialty == widget.specialty)
-          .take(_pageSize)
-          .toList();
       _isLoading = false;
-      _hasMore = DoctorsData.doctors
-          .where((doctor) => doctor.specialty == widget.specialty)
-          .length >
-          _pageSize;
     });
   }
 
-  Future<void> _loadMoreDoctors() async {
+  Future<void> _loadMoreDoctors(List<Doctor> allDoctors) async {
     if (!_hasMore || _isLoading || _filteredDoctors == null) return;
     setState(() {
       _isLoading = true;
     });
     await Future.delayed(const Duration(seconds: 1));
     setState(() {
-      final nextDoctors = DoctorsData.doctors
-          .where((doctor) => doctor.specialty == widget.specialty)
+      final nextDoctors = allDoctors
           .skip(_filteredDoctors!.length)
           .take(_pageSize)
           .toList();
@@ -86,6 +73,20 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
     });
   }
 
+  void _resetSort() {
+    setState(() {
+      _sortOption = 'Most Recommended';
+      _applyFiltersAndSort();
+    });
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _filters = {};
+      _applyFiltersAndSort();
+    });
+  }
+
   void _applyFilters(Map<String, dynamic> filters) {
     setState(() {
       _filters = filters;
@@ -94,76 +95,118 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
   }
 
   void _applyFiltersAndSort() {
-    var doctors = DoctorsData.doctors
-        .where((doctor) => doctor.specialty == widget.specialty)
-        .toList();
-
-    if (_searchQuery.isNotEmpty) {
-      doctors = doctors.where((doctor) {
-        return doctor.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            doctor.location.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            doctor.specialty.toLowerCase().contains(_searchQuery.toLowerCase());
-      }).toList();
-    }
-
-    if (_filters.containsKey('trait') && _filters['trait'] != null) {
-      doctors =
-          doctors.where((doctor) => doctor.trait == _filters['trait']).toList();
-    }
-
-    if (_filters.containsKey('maxFees') && _filters['maxFees'] != null) {
-      doctors = doctors
-          .where((doctor) => doctor.fees <= _filters['maxFees'])
-          .toList();
-    }
-
-    switch (_sortOption) {
-      case 'Rating':
-        doctors.sort((a, b) => b.rating.compareTo(a.rating));
-        break;
-      case 'Fees':
-        doctors.sort((a, b) => a.fees.compareTo(b.fees));
-        break;
-      case 'Waiting Time':
-        doctors.sort(
-                (a, b) => a.waitingTimeMinutes.compareTo(b.waitingTimeMinutes));
-        break;
-    }
-
-    setState(() {
-      _filteredDoctors = doctors.take(_pageSize).toList();
-      _hasMore = doctors.length > _pageSize;
-    });
+    // Called within StreamBuilder
   }
 
   void _showSortDialog() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sort By'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      isScrollControlled: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 2,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Column(
           children: [
-            ListTile(
-              title: const Text('Rating'),
-              onTap: () {
-                _sortDoctors('Rating');
-                Navigator.pop(context);
-              },
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            ListTile(
-              title: const Text('Fees'),
-              onTap: () {
-                _sortDoctors('Fees');
-                Navigator.pop(context);
-              },
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Sort',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      _resetSort();
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Reset',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            ListTile(
-              title: const Text('Waiting Time'),
-              onTap: () {
-                _sortDoctors('Waiting Time');
-                Navigator.pop(context);
-              },
+            Expanded(
+              child: ListView(
+                children: [
+                  RadioListTile<String>(
+                    title: const Text('Most Recommended'),
+                    value: 'Most Recommended',
+                    groupValue: _sortOption,
+                    activeColor: Colors.blue[800],
+                    onChanged: (value) {
+                      _sortDoctors(value!);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Price Low to High'),
+                    value: 'Price Low to High',
+                    groupValue: _sortOption,
+                    activeColor: Colors.blue[800],
+                    onChanged: (value) {
+                      _sortDoctors(value!);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Price High to Low'),
+                    value: 'Price High to Low',
+                    groupValue: _sortOption,
+                    activeColor: Colors.blue[800],
+                    onChanged: (value) {
+                      _sortDoctors(value!);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Short Waiting Time'),
+                    value: 'Short Waiting Time',
+                    groupValue: _sortOption,
+                    activeColor: Colors.blue[800],
+                    onChanged: (value) {
+                      _sortDoctors(value!);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -171,84 +214,310 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
     );
   }
 
-  void _showFilterDialog() {
+  void _showFilterDialog(List<Doctor> allDoctors) {
     final maxFeesController = TextEditingController();
     String? selectedTrait;
-    showDialog(
+
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Filter By'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: 'Trait'),
-              items: DoctorsData.doctors
-                  .map((doctor) => doctor.trait)
-                  .toSet()
-                  .map((trait) => DropdownMenuItem(
-                value: trait,
-                child: Text(trait),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                selectedTrait = value;
-              },
-            ),
-            TextField(
-              controller: maxFeesController,
-              decoration: const InputDecoration(labelText: 'Max Fees (EGP)'),
-              keyboardType: TextInputType.number,
+      isScrollControlled: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 2,
+              offset: const Offset(0, -2),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final filters = <String, dynamic>{};
-              if (selectedTrait != null) {
-                filters['trait'] = selectedTrait;
-              }
-              if (maxFeesController.text.isNotEmpty) {
-                try {
-                  filters['maxFees'] = double.parse(maxFeesController.text);
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Please enter a valid number for fees')),
-                  );
-                  return;
-                }
-              }
-              _applyFilters(filters);
-              Navigator.pop(context);
-            },
-            child: const Text('Apply'),
-          ),
-        ],
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Filter By',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: ListView(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: 'Trait',
+                        labelStyle: TextStyle(color: Colors.grey[600]),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                          BorderSide(color: Colors.blue[800]!, width: 2),
+                        ),
+                      ),
+                      items: allDoctors
+                          .map((doctor) => doctor.trait)
+                          .toSet()
+                          .map((trait) => DropdownMenuItem(
+                        value: trait,
+                        child: Text(trait),
+                      ))
+                          .toList(),
+                      onChanged: (value) {
+                        selectedTrait = value;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: maxFeesController,
+                      decoration: InputDecoration(
+                        labelText: 'Max Fees (EGP)',
+                        labelStyle: TextStyle(color: Colors.grey[600]),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                          BorderSide(color: Colors.blue[800]!, width: 2),
+                        ),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              _resetFilters();
+                              maxFeesController.clear();
+                              selectedTrait = null;
+                              Navigator.pop(context);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey[400]!),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text(
+                              'Reset',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey[400]!),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final filters = <String, dynamic>{};
+                              if (selectedTrait != null) {
+                                filters['trait'] = selectedTrait;
+                              }
+                              if (maxFeesController.text.isNotEmpty) {
+                                try {
+                                  filters['maxFees'] =
+                                      double.parse(maxFeesController.text);
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Please enter a valid number for fees')),
+                                  );
+                                  return;
+                                }
+                              }
+                              _applyFilters(filters);
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[800],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                              elevation: 2,
+                            ),
+                            child: const Text(
+                              'Apply',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showMapView() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Map View'),
-        content:
-        const Text('Temporary placeholder for map. To be updated later.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+      isScrollControlled: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 2,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                'Map View',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const Expanded(
+              child: Center(
+                child: Text('Temporary placeholder for map. To be updated later.'),
+              ),
+            ),
+            Padding(
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[800],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 2,
+                ),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -259,14 +528,19 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;
-        const curve = Curves.easeInOut;
+        const curve = Curves.fastOutSlowIn;
+        var slideTween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        var fadeTween = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: curve));
 
-        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-        var offsetAnimation = animation.drive(tween);
+        var slideAnimation = animation.drive(slideTween);
+        var fadeAnimation = animation.drive(fadeTween);
 
         return SlideTransition(
-          position: offsetAnimation,
-          child: child,
+          position: slideAnimation,
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: child,
+          ),
         );
       },
       transitionDuration: const Duration(milliseconds: 300),
@@ -286,102 +560,217 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
         ),
       ),
       backgroundColor: Colors.grey[200],
-      body: Column(
-        children: [
-          Card(
-            elevation: 4,
-            margin: EdgeInsets.zero,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(12),
-                bottomRight: Radius.circular(12),
-              ),
-            ),
-            color: Colors.white,
-            child: Padding(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              child: Column(
-                children: [
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search for doctor or hospital',
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Colors.grey[600],
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      contentPadding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    ),
-                    onChanged: _searchDoctors,
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('doctors')
+            .where('specialty', isEqualTo: widget.specialty)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            print('Firestore Error: ${snapshot.error}');
+            return const Center(child: Text('Error loading doctors'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final firestoreDoctors = snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            print('Firestore Doc: $data');
+            return Doctor(
+              name: data['name'] ?? 'Unknown Doctor',
+              specialty: data['specialty'] ?? widget.specialty,
+              rating: (data['rating'] ?? 0.0).toDouble(),
+              numberOfReviews: data['numberOfReviews'] ?? 0,
+              trait: data['trait'] ?? 'General',
+              location: data['location'] ?? 'Unknown Location',
+              fees: (data['fees'] ?? 100.0).toDouble(),
+              waitingTimeMinutes: data['waitingTimeMinutes'] ?? 30,
+              availability: data['availability'] ?? 'Not Specified',
+              isSponsored: data['isSponsored'] ?? false,
+              imageUrl: data['imageUrl'] ?? 'assets/images/default_doctor.png',
+              bio: data['bio'] ?? 'No bio available',
+              reviews: (data['reviews'] as List<dynamic>?)?.map((review) {
+                final reviewData = review as Map<String, dynamic>;
+                return Review(
+                  comment: reviewData['comment'] ?? 'No comment',
+                  stars: reviewData['stars'] ?? 0,
+                  reviewerName: reviewData['reviewerName'] ?? 'Anonymous',
+                );
+              }).toList() ?? [],
+            );
+          }).toList();
+
+          print('Firestore Doctors Count: ${firestoreDoctors.length}');
+
+          final staticDoctors = DoctorsData.doctors
+              .where((doctor) => doctor.specialty == widget.specialty)
+              .toList();
+          print('Static Doctors Count: ${staticDoctors.length}');
+
+          final allDoctorsMap = <String, Doctor>{};
+          for (var doctor in [...staticDoctors, ...firestoreDoctors]) {
+            allDoctorsMap[doctor.name] = doctor;
+          }
+          final allDoctors = allDoctorsMap.values.toList();
+
+          print('Total Combined Doctors: ${allDoctors.length}');
+          allDoctors.forEach((doctor) {
+            print(
+                'Doctor: ${doctor.name}, Specialty: ${doctor.specialty}, Source: ${firestoreDoctors.contains(doctor) ? 'Firestore' : 'Static'}');
+          });
+
+          var doctors = allDoctors;
+
+          if (_searchQuery.isNotEmpty) {
+            doctors = doctors.where((doctor) {
+              return doctor.name
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase()) ||
+                  doctor.location
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()) ||
+                  doctor.specialty
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase());
+            }).toList();
+          }
+
+          if (_filters.containsKey('trait') && _filters['trait'] != null) {
+            doctors = doctors
+                .where((doctor) => doctor.trait == _filters['trait'])
+                .toList();
+          }
+
+          if (_filters.containsKey('maxFees') && _filters['maxFees'] != null) {
+            doctors = doctors
+                .where((doctor) => doctor.fees <= _filters['maxFees'])
+                .toList();
+          }
+
+          switch (_sortOption) {
+            case 'Most Recommended':
+              doctors.sort((a, b) => b.rating.compareTo(a.rating));
+              break;
+            case 'Price Low to High':
+              doctors.sort((a, b) => a.fees.compareTo(b.fees));
+              break;
+            case 'Price High to Low':
+              doctors.sort((a, b) => b.fees.compareTo(a.fees));
+              break;
+            case 'Short Waiting Time':
+              doctors.sort((a, b) =>
+                  a.waitingTimeMinutes.compareTo(b.waitingTimeMinutes));
+              break;
+          }
+
+          if (_filteredDoctors == null) {
+            _filteredDoctors = doctors.take(_pageSize).toList();
+            _hasMore = doctors.length > _pageSize;
+          }
+
+          return Column(
+            children: [
+              Card(
+                elevation: 4,
+                margin: EdgeInsets.zero,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
+                ),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 12.0),
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: _buildActionButtonWithIcon(
-                          label: 'Sort',
-                          icon: Icons.sort,
-                          onPressed: _showSortDialog,
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search for doctor or hospital',
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.grey[600],
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
                         ),
+                        onChanged: _searchDoctors,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildActionButtonWithIcon(
-                          label: 'Filter',
-                          icon: Icons.filter_list,
-                          onPressed: _showFilterDialog,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildActionButtonWithIcon(
-                          label: 'Map',
-                          icon: Icons.map,
-                          onPressed: _showMapView,
-                        ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButtonWithIcon(
+                              label: 'Sort',
+                              icon: Icons.sort,
+                              onPressed: _showSortDialog,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildActionButtonWithIcon(
+                              label: 'Filter',
+                              icon: Icons.filter_list,
+                              onPressed: () => _showFilterDialog(allDoctors),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildActionButtonWithIcon(
+                              label: 'Map',
+                              icon: Icons.map,
+                              onPressed: _showMapView,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            child: _isLoading && _filteredDoctors == null
-                ? _buildLoadingState()
-                : _filteredDoctors == null
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredDoctors!.isEmpty
-                ? const Center(child: Text('No doctors found'))
-                : ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              itemCount: _filteredDoctors!.length + (_hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == _filteredDoctors!.length) {
-                  _loadMoreDoctors();
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final doctor = _filteredDoctors![index];
-                return _buildDoctorCard(context, doctor);
-              },
-            ),
-          ),
-        ],
+              Expanded(
+                child: _filteredDoctors!.isEmpty
+                    ? const Center(child: Text('No doctors found'))
+                    : ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  cacheExtent: 9999,
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  itemCount:
+                  _filteredDoctors!.length + (_hasMore ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == _filteredDoctors!.length) {
+                      _loadMoreDoctors(allDoctors);
+                      return const Center(
+                          child: CircularProgressIndicator());
+                    }
+                    final doctor = _filteredDoctors![index];
+                    print('Rendering doctor: ${doctor.name}');
+                    return _buildDoctorCard(context, doctor, index);
+                  },
+                ),
+              ),
+            ],
+          ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.3, end: 0);
+        },
       ),
     );
   }
@@ -419,8 +808,7 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
     );
   }
 
-  Widget _buildDoctorCard(BuildContext context, Doctor doctor) {
-    // Fallback for bio and reviews
+  Widget _buildDoctorCard(BuildContext context, Doctor doctor, int index) {
     final doctorWithFallback = Doctor(
       name: doctor.name,
       specialty: doctor.specialty,
@@ -449,7 +837,7 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
@@ -473,14 +861,42 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(60),
-                      child: const SizedBox(
+                      child: doctor.imageUrl.startsWith('assets/')
+                          ? Image.asset(
+                        doctor.imageUrl,
                         width: 70,
                         height: 70,
-                        child: Icon(
-                          Icons.person,
-                          size: 50,
-                          color: Colors.grey,
-                        ),
+                        fit: BoxFit.cover,
+                      )
+                          : doctor.imageUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                        imageUrl: doctor.imageUrl,
+                        width: 70,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            Shimmer.fromColors(
+                              baseColor: Colors.grey[300]!,
+                              highlightColor: Colors.grey[100]!,
+                              child: Container(
+                                width: 70,
+                                height: 70,
+                                color: Colors.white,
+                              ),
+                            ),
+                        errorWidget: (context, url, error) =>
+                            Image.asset(
+                              'assets/images/default_doctor.png',
+                              width: 70,
+                              height: 70,
+                              fit: BoxFit.cover,
+                            ),
+                      )
+                          : Image.asset(
+                        'assets/images/default_doctor.png',
+                        width: 70,
+                        height: 70,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
@@ -693,11 +1109,22 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
           ),
         ),
       ),
+    ).animate().fadeIn(
+      duration: 400.ms,
+      delay: (index * 100).ms,
+    ).slideY(
+      begin: 0.3,
+      end: 0.0,
+      duration: 400.ms,
+      curve: Curves.easeOutCubic,
     );
   }
 
-  Widget _buildInfoRow(
-      {required IconData icon, required Color color, required Widget child}) {
+  Widget _buildInfoRow({
+    required IconData icon,
+    required Color color,
+    required Widget child,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -710,12 +1137,14 @@ class _SpecialtyPageState extends State<SpecialtyPage> {
 
   Widget _buildLoadingState() {
     return ListView.builder(
+      physics: const BouncingScrollPhysics(),
+      cacheExtent: 9999,
       itemCount: 5,
       itemBuilder: (context, index) => Shimmer.fromColors(
         baseColor: Colors.grey[300]!,
         highlightColor: Colors.grey[100]!,
         child: Card(
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           child: Container(height: 150, color: Colors.white),
         ),
       ),

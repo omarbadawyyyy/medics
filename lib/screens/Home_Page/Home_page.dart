@@ -3,10 +3,12 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lottie/lottie.dart';
 import 'package:medics/screens/Home_Page/pharmacy/pharmacy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:medics/screens/Home_Page/search/doctor_profile_page.dart';
+import 'package:medics/screens/Home_Page/search/doctors_data.dart';
 import 'ShamelPage.dart';
 import 'ask_a_doctor.dart';
 import 'bmi/bmi_calculator_page.dart';
+import 'home_care/HomeCare.dart';
 import 'labs/LabsAndScansPage.dart';
 import 'my_activity_page.dart';
 import 'my_profile/my_profile_page.dart';
@@ -37,7 +39,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    print('Email received in HomePage: ${widget.email}'); // للتأكد من الـ email
+    print('Email received in HomePage: ${widget.email}');
     _pages = [
       HomeContent(email: widget.email),
       MyActivityPage(),
@@ -54,7 +56,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () async => false,
+      onWillPop: () async => false, // Prevent back button from exiting the app
       child: Scaffold(
         backgroundColor: Colors.grey[200],
         appBar: AppBar(
@@ -108,12 +110,20 @@ class HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<HomeContent> {
   bool _isSubscribed = false;
+  String _selectedCategory = 'All';
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    print('Email received in HomeContent: ${widget.email}'); // للتأكد من الـ email
+    print('Email received in HomeContent: ${widget.email}');
     _loadSubscriptionStatus();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSubscriptionStatus() async {
@@ -136,9 +146,26 @@ class _HomeContentState extends State<HomeContent> {
     await _loadSubscriptionStatus();
   }
 
+  String _mapSpecialtyToImageName(String specialty) {
+    switch (specialty) {
+      case 'Pediatrics':
+        return 'Pediatrics and New Born';
+      case 'Gynecology':
+        return 'Gynaecology and Infertility';
+      case 'Ear (ENT)':
+        return 'Ear, Nose and Throat';
+      case 'Cardiology':
+        return 'Cardiology and Vascular Disease';
+      default:
+        return specialty;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      clipBehavior: Clip.hardEdge,
       child: Column(
         children: [
           const SizedBox(height: 20),
@@ -152,14 +179,34 @@ class _HomeContentState extends State<HomeContent> {
               mainAxisSpacing: 10,
               children: [
                 _buildContainer('Clinic Visit', 'assets/clinic_visit.png', () {
-                  Navigator.push(context, _createSlideRoute(SearchPage()));
+                  Navigator.push(
+                    context,
+                    _createSlideRoute(
+                      SearchPage(source: 'client_visit', email: widget.email),
+                    ),
+                  );
                 }),
                 _buildContainer('Pharmacy', 'assets/pharmacy.png', () {
-                  print('Navigating to PharmacyPage with email: ${widget.email}'); // للتأكد من الـ email
-                  Navigator.push(context, _createSlideRoute(PharmacyPage(email: widget.email)));
+                  print('Navigating to PharmacyPage with email: ${widget.email}');
+                  Navigator.push(
+                    context,
+                    _createSlideRoute(PharmacyPage(email: widget.email)),
+                  );
                 }),
-                _buildContainer('Doctor Call', 'assets/doctor_call.png', () {}),
-                _buildContainer('Home Care', 'assets/home_care.png', () {}),
+                _buildContainer('Doctor Call', 'assets/doctor_call.png', () {
+                  Navigator.push(
+                    context,
+                    _createSlideRoute(
+                      SearchPage(source: 'doctor_call', email: widget.email),
+                    ),
+                  );
+                }),
+                _buildContainer('Home Care', 'assets/home_care.png', () {
+                  Navigator.push(
+                    context,
+                    _createSlideRoute(HomeCarePage(email: widget.email)),
+                  );
+                }),
                 _buildContainer('Procedures', 'assets/procedures.png', () {}),
                 InkWell(
                   onTap: () {
@@ -212,6 +259,7 @@ class _HomeContentState extends State<HomeContent> {
           const SizedBox(height: 20),
           _buildSearchBar(context),
           _buildShamelBanner(context, _isSubscribed, _navigateToShamelPage),
+          _buildFeaturedDoctors(),
           _buildActionContainer('Have a Medical Question?', 'assets/medical_question.png', 'Ask Now', () {
             Navigator.push(context, _createSlideRoute(AskADoctorPage()));
           }),
@@ -269,7 +317,10 @@ class _HomeContentState extends State<HomeContent> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: GestureDetector(
-        onTap: () => Navigator.push(context, _createSlideRoute(SearchPage())),
+        onTap: () => Navigator.push(
+          context,
+          _createSlideRoute(SearchPage(source: 'client_visit', email: widget.email)),
+        ),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
@@ -299,6 +350,266 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
+  Widget _buildFeaturedDoctors() {
+    final filteredDoctors = _selectedCategory == 'All'
+        ? DoctorsData.doctors
+        : DoctorsData.doctors.where((doctor) => doctor.specialty == _selectedCategory).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Featured Doctors',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[900],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.arrow_forward, color: Colors.blue[900]),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      _createSlideRoute(SearchPage(source: 'client_visit', email: widget.email)),
+                    );
+                  },
+                  tooltip: 'View all doctors',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  'All',
+                  'Cardiology',
+                  'Dentistry',
+                  'Dermatology',
+                  'Ear (ENT)',
+                  'Gynecology',
+                  'Internal Medicine',
+                  'Neurology',
+                  'Orthopedics',
+                  'Pediatrics',
+                  'Psychiatry'
+                ].map((category) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(category),
+                      selected: _selectedCategory == category,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedCategory = selected ? category : 'All';
+                        });
+                      },
+                      selectedColor: Colors.blue[900],
+                      backgroundColor: Colors.grey[200],
+                      labelStyle: TextStyle(
+                        color: _selectedCategory == category ? Colors.white : Colors.black,
+                        fontSize: 13,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 240,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: filteredDoctors.length,
+                itemBuilder: (context, index) {
+                  final doctor = filteredDoctors[index];
+                  String imageSpecialtyName = _mapSpecialtyToImageName(doctor.specialty);
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        _createSlideRoute(DoctorProfilePage(doctor: doctor)),
+                      );
+                    },
+                    child: Container(
+                      width: 160,
+                      margin: const EdgeInsets.only(right: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 6,
+                              offset: const Offset(0, 3)),
+                        ],
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Stack(
+                            children: [
+                              Container(
+                                height: 120,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey[400]!, width: 2),
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                                  child: Image.asset(
+                                    doctor.imageUrl,
+                                    height: 120,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Image.asset(
+                                      'assets/images/default_doctor.png',
+                                      height: 120,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.star, color: Colors.amber, size: 14),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        doctor.rating.toStringAsFixed(1),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  doctor.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Image.asset(
+                                      'assets/$imageSpecialtyName.png',
+                                      width: 18,
+                                      height: 18,
+                                      errorBuilder: (context, error, stackTrace) => const Icon(
+                                        Icons.medical_services,
+                                        size: 18,
+                                        color: Colors.blue,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        doctor.specialty,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.location_on,
+                                      size: 14,
+                                      color: Colors.blue[600],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        doctor.location.split(':')[1].trim(),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.blue[600],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fade(duration: 500.ms).slideY(begin: 0.3, end: 0);
+  }
+
   Widget _buildShamelBanner(
       BuildContext context, bool isSubscribed, Future<void> Function(BuildContext) navigateToShamelPage) {
     return Padding(
@@ -322,7 +633,7 @@ class _HomeContentState extends State<HomeContent> {
                     const Text(
                       'Shamel',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 30,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -379,7 +690,13 @@ class _HomeContentState extends State<HomeContent> {
             const SizedBox(width: 16),
             ElevatedButton(
               onPressed: onTap,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900]),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[900],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
               child: Text(buttonText, style: const TextStyle(color: Colors.white)),
             ),
           ],
@@ -393,11 +710,23 @@ PageRouteBuilder _createSlideRoute(Widget page) {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => page,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      const begin = Offset(1.0, 0.0);
+      const end = Offset.zero;
+      const curve = Curves.fastOutSlowIn;
+      var slideTween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+      var fadeTween = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: curve));
+
+      var slideAnimation = animation.drive(slideTween);
+      var fadeAnimation = animation.drive(fadeTween);
+
       return SlideTransition(
-        position: animation.drive(Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)),
-        child: child,
+        position: slideAnimation,
+        child: FadeTransition(
+          opacity: fadeAnimation,
+          child: child,
+        ),
       );
     },
-    transitionDuration: const Duration(milliseconds: 500),
+    transitionDuration: const Duration(milliseconds: 300),
   );
 }

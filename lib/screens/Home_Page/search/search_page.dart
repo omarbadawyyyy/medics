@@ -1,13 +1,22 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'specialty_page.dart'; // استيراد SpecialtyPage
+import 'package:flutter_animate/flutter_animate.dart';
+import '../my_profile/screens_myProfil/my_account_screens/address_managment/address_management_page.dart';
+import 'specialty_page.dart';
+import '../doctor_call/doctor_call_specialty_page.dart';
 
 class SearchPage extends StatefulWidget {
+  final String source;
+  final String email;
+
+  const SearchPage({super.key, required this.source, required this.email});
+
   @override
   _SearchPageState createState() => _SearchPageState();
 }
 
 class _SearchPageState extends State<SearchPage> {
-  final List<String> _specialties = [
+  final List<String> _specialties = const [
     'Dermatology',
     'Dentistry',
     'Psychiatry',
@@ -21,8 +30,8 @@ class _SearchPageState extends State<SearchPage> {
   ];
 
   String _searchQuery = '';
-
   List<String> _filteredSpecialties = [];
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -30,17 +39,31 @@ class _SearchPageState extends State<SearchPage> {
     _filteredSpecialties = _specialties;
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _preloadImages();
+  }
+
+  void _preloadImages() {
+    for (var specialty in _specialties) {
+      precacheImage(AssetImage('assets/$specialty.png'), context);
+    }
+  }
+
   void _updateSearchQuery(String query) {
-    setState(() {
-      _searchQuery = query;
-      _filteredSpecialties = _specialties
-          .where((specialty) =>
-          specialty.toLowerCase().contains(query.toLowerCase()))
-          .toList();
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _searchQuery = query;
+        _filteredSpecialties = _specialties
+            .where((specialty) =>
+            specialty.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      });
     });
   }
 
-  // دالة لتحويل اسم التخصص إلى الاسم المستخدم في قاعدة البيانات
   String _mapSpecialtyName(String specialty) {
     switch (specialty) {
       case 'Pediatrics and New Born':
@@ -57,29 +80,58 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _navigateToSpecialtyPage(BuildContext context, String specialty) {
-    // تحويل اسم التخصص إلى الاسم المستخدم في قاعدة البيانات
     String mappedSpecialty = _mapSpecialtyName(specialty);
 
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 500), // مدة الانيميشن
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SpecialtyPage(specialty: mappedSpecialty),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          var begin = const Offset(1.0, 0.0); // بداية الانيميشن من اليمين
-          var end = Offset.zero; // نهاية الانيميشن
-          var curve = Curves.easeInOutQuart; // Curve للانيميشن
-          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          var offsetAnimation = animation.drive(tween);
+    Widget targetPage;
+    switch (widget.source) {
+      case 'doctor_call':
+        targetPage = DoctorCallSpecialtyPage(specialty: mappedSpecialty);
+        break;
+      case 'doctor_visit':
+        targetPage = AddressManagementPage(
+          email: widget.email,
+          source: widget.source,
+          specialty: mappedSpecialty,
+        );
+        break;
+      case 'client_visit':
+      default:
+        targetPage = SpecialtyPage(specialty: mappedSpecialty);
+        break;
+    }
 
-          return SlideTransition(
-            position: offsetAnimation,
+    Navigator.push(context, _createSlideRoute(targetPage));
+  }
+
+  PageRouteBuilder _createSlideRoute(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        const curve = Curves.fastOutSlowIn;
+        var slideTween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        var fadeTween = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: curve));
+
+        var slideAnimation = animation.drive(slideTween);
+        var fadeAnimation = animation.drive(fadeTween);
+
+        return SlideTransition(
+          position: slideAnimation,
+          child: FadeTransition(
+            opacity: fadeAnimation,
             child: child,
-          );
-        },
-      ),
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 300),
     );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -117,7 +169,7 @@ class _SearchPageState extends State<SearchPage> {
               onChanged: _updateSearchQuery,
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'Most Popular Specialties',
               style: TextStyle(
                 fontSize: 18,
@@ -127,10 +179,19 @@ class _SearchPageState extends State<SearchPage> {
             ),
             const SizedBox(height: 10),
             Expanded(
-              child: ListView(
-                children: _filteredSpecialties
-                    .map((specialty) => _buildSpecialtyItem(specialty))
-                    .toList(),
+              child: ListView.builder(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                cacheExtent: 9999,
+                clipBehavior: Clip.hardEdge,
+                itemCount: _filteredSpecialties.length,
+                itemBuilder: (context, index) {
+                  return _buildSpecialtyItem(
+                    _filteredSpecialties[index],
+                    delay: (index * 100).ms,
+                  );
+                },
               ),
             ),
           ],
@@ -139,7 +200,7 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildSpecialtyItem(String specialty) {
+  Widget _buildSpecialtyItem(String specialty, {Duration delay = Duration.zero}) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 5),
       color: Colors.white,
@@ -165,9 +226,17 @@ class _SearchPageState extends State<SearchPage> {
           ),
         ),
         onTap: () {
-          _navigateToSpecialtyPage(context, specialty); // الانتقال إلى صفحة التخصص
+          _navigateToSpecialtyPage(context, specialty);
         },
       ),
+    ).animate().fadeIn(
+      duration: 400.ms,
+      delay: delay,
+    ).slideY(
+      begin: 0.3,
+      end: 0.0,
+      duration: 400.ms,
+      curve: Curves.easeOutCubic,
     );
   }
 }
