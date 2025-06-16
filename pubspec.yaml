@@ -99,6 +99,8 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
+    - assets/egyptian_medicines/
+    - assets/pharmacy/
     - assets/Doctors/Dr. Mohamed Abdel Rahman.png
     - assets/Doctors/Dr. Aya Khaled.png
     - assets/Doctors/

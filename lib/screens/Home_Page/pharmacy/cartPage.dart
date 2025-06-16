@@ -5,6 +5,7 @@ import 'package:medics/screens/Home_Page/pharmacy/paymob_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'egyptian_medicines/EgyptianPharmacyDatabaseHelper.dart';
 import 'medicine_database_helper.dart';
 
 class CartPage extends StatefulWidget {
@@ -30,6 +31,7 @@ class _CartPageState extends State<CartPage> {
   final double _deliveryFee = 5.0;
   String _selectedPaymentMethod = 'Cash on Delivery';
   final MedicineDatabaseHelper _dbHelper = MedicineDatabaseHelper();
+  final EgyptianPharmacyDatabaseHelper _egyptianDbHelper = EgyptianPharmacyDatabaseHelper(); // Initialize new DB helper
   String? _savedCardToken;
   bool _isSubscribed = false;
   bool _isLoading = true;
@@ -94,7 +96,14 @@ class _CartPageState extends State<CartPage> {
   Future<void> _fetchCartItems() async {
     List<Map<String, dynamic>> items = [];
     for (String medicineName in widget.addedProducts.keys) {
+      // First, try fetching from MedicineDatabaseHelper
       Map<String, dynamic>? medicine = await _dbHelper.getMedicineByName(medicineName);
+
+      // If not found, try EgyptianPharmacyDatabaseHelper
+      if (medicine == null) {
+        medicine = await _egyptianDbHelper.getMedicineByName(medicineName);
+      }
+
       if (medicine != null) {
         Map<String, dynamic> mutableMedicine = Map.from(medicine);
         mutableMedicine['quantity'] = widget.addedProducts[medicineName] ?? 0;
@@ -104,7 +113,7 @@ class _CartPageState extends State<CartPage> {
         items.add(mutableMedicine);
         print('Item: ${mutableMedicine['name']}, Original: $originalPrice, Discounted: ${mutableMedicine['price']}');
       } else {
-        print('Medicine not found in database: $medicineName');
+        print('Medicine not found in either database: $medicineName');
       }
     }
     if (mounted) {
@@ -114,6 +123,7 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
+  // The rest of the methods (_calculateSubtotal, _calculateOriginalSubtotal, etc.) remain unchanged
   double _calculateSubtotal() {
     double total = 0.0;
     for (var item in _cartItems) {
@@ -204,11 +214,9 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
-    // هنا ممكن تضيفي لوجيك التحقق من الكوبون (مثلاً من Firestore أو قاعدة بيانات)
-    // للتجربة، هنفترض كوبون بسيط يعطي خصم 10%
     if (couponCode.toLowerCase() == 'discount10') {
       setState(() {
-        _couponDiscount = _calculateSubtotal() * 0.10; // خصم 10%
+        _couponDiscount = _calculateSubtotal() * 0.10; // 10% discount
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Coupon applied! 10% discount')),
@@ -583,7 +591,6 @@ class _CartPageState extends State<CartPage> {
             : SingleChildScrollView(
           child: Column(
             children: [
-              // ملخص السلة
               Container(
                 padding: const EdgeInsets.all(16.0),
                 color: Colors.blue.shade50,
@@ -616,7 +623,6 @@ class _CartPageState extends State<CartPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // قسم الكوبون
                     Row(
                       children: [
                         Expanded(

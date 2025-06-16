@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:image/image.dart' as img;
 import 'OrderTrackingPage.dart';
 import 'cartPage.dart';
+import 'egyptian_medicines/EgyptianPharmacyDatabaseHelper.dart';
 import 'medicine_database_helper.dart';
 import '../my_profile/screens_myProfil/my_account_screens/address_managment/address_management_page.dart';
 
@@ -30,12 +31,14 @@ class _PharmacyPageState extends State<PharmacyPage> {
   String? _pickedImagePath;
   Map<String, dynamic>? _selectedMedicine;
   final MedicineDatabaseHelper _dbHelper = MedicineDatabaseHelper();
+  final EgyptianPharmacyDatabaseHelper _egyDbHelper = EgyptianPharmacyDatabaseHelper();
 
   final TextEditingController _searchController = TextEditingController();
   OverlayEntry? _overlayEntry;
   List<Map<String, dynamic>> _searchResults = [];
   List<Map<String, dynamic>> _allMedicines = [];
   List<Map<String, dynamic>> _displayedMedicines = [];
+  List<Map<String, dynamic>> _pharmaciesWithMedicine = []; // New: Stores pharmacies with the searched medicine
   int _itemsPerPage = 10;
   int _currentPage = 0;
   bool _isContentLoading = true;
@@ -83,6 +86,7 @@ class _PharmacyPageState extends State<PharmacyPage> {
 
   Future<void> _initializeDatabase() async {
     await _dbHelper.addMedicines();
+    await _egyDbHelper.addMedicinesAndPharmacies();
   }
 
   Future<void> _fetchAllMedicines() async {
@@ -145,8 +149,13 @@ class _PharmacyPageState extends State<PharmacyPage> {
     });
   }
 
-  void _makePhoneCall() async {
-    const phoneNumber = '16676';
+  void _makePhoneCall(String? phoneNumber) async {
+    if (phoneNumber == null || phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No phone number available for this pharmacy')),
+      );
+      return;
+    }
     final Uri url = Uri.parse('tel:$phoneNumber');
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
@@ -493,8 +502,17 @@ Now, analyze the image and return the list of medicine names with accurate spell
     bool found = false;
     Map<String, dynamic>? medicine;
     for (String word in words) {
+      // First try primary database
       medicine = await _dbHelper.getMedicineByName(word);
       if (medicine != null) {
+        found = true;
+        break;
+      }
+
+      // If not found, try secondary database
+      List<Map<String, dynamic>> secondaryResults = await _egyDbHelper.searchMedicinesAndPharmacies(word);
+      if (secondaryResults.isNotEmpty) {
+        medicine = secondaryResults.first;
         found = true;
         break;
       }
@@ -516,25 +534,45 @@ Now, analyze the image and return the list of medicine names with accurate spell
     List<String> notFoundMedicines = [];
     const int maxDistance = 2;
 
-    List<Map<String, dynamic>> allMedicines = await _dbHelper.getAllMedicines();
-
     for (String word in words) {
       if (word.isEmpty) continue;
 
+      // First try primary database
       Map<String, dynamic>? medicine = await _dbHelper.getMedicineByName(word);
       if (medicine != null) {
         foundMedicines.add(medicine);
         continue;
       }
 
+      // If not found, try secondary database
+      List<Map<String, dynamic>> secondaryResults = await _egyDbHelper.searchMedicinesAndPharmacies(word);
+      if (secondaryResults.isNotEmpty) {
+        foundMedicines.addAll(secondaryResults);
+        continue;
+      }
+
+      // If still not found, try fuzzy search in both databases
       Map<String, dynamic>? closestMatch;
       int minDistance = maxDistance + 1;
 
-      for (var dbMedicine in allMedicines) {
+      // Search in primary database
+      for (var dbMedicine in _allMedicines) {
         int distance = _calculateLevenshteinDistance(word.toLowerCase(), dbMedicine['name'].toLowerCase());
         if (distance <= maxDistance && distance < minDistance) {
           minDistance = distance;
           closestMatch = dbMedicine;
+        }
+      }
+
+      // Search in secondary database if no close match found
+      if (closestMatch == null) {
+        List<Map<String, dynamic>> allSecondaryMedicines = await _egyDbHelper.getAllMedicines();
+        for (var dbMedicine in allSecondaryMedicines) {
+          int distance = _calculateLevenshteinDistance(word.toLowerCase(), dbMedicine['name'].toLowerCase());
+          if (distance <= maxDistance && distance < minDistance) {
+            minDistance = distance;
+            closestMatch = dbMedicine;
+          }
         }
       }
 
@@ -945,6 +983,19 @@ Now, analyze the image and return the list of medicine names with accurate spell
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
+                                              if (medicine.containsKey('pharmacy_name'))
+                                                SizedBox(height: 4 * constraints.maxHeight / 640),
+                                              if (medicine.containsKey('pharmacy_name'))
+                                                Text(
+                                                  'Pharmacy: ${medicine['pharmacy_name']}',
+                                                  style: TextStyle(
+                                                    fontSize: 11 * constraints.maxWidth / 360,
+                                                    color: Colors.green[700],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
                                             ],
                                           ),
                                         ),
@@ -1066,20 +1117,44 @@ Now, analyze the image and return the list of medicine names with accurate spell
         _removeOverlay();
         setState(() {
           _searchResults = [];
+          _pharmaciesWithMedicine = []; // Clear pharmacies when query is empty
         });
         return;
       }
 
-      final results = await _dbHelper.searchMedicines(query);
+      // Search in primary database
+      final primaryResults = await _dbHelper.searchMedicines(query);
+      // Search in secondary database for medicines and pharmacies
+      final secondaryResults = await _egyDbHelper.searchMedicinesAndPharmacies(query);
+
+      // Combine results and remove duplicates
       final uniqueResults = <String, Map<String, dynamic>>{};
-      for (var result in results) {
+      for (var result in primaryResults) {
+        uniqueResults[result['name']] = result;
+      }
+      for (var result in secondaryResults) {
         uniqueResults[result['name']] = result;
       }
       final filteredResults = uniqueResults.values.toList();
 
+      // Extract unique pharmacies from secondary results
+      final uniquePharmacies = <String, Map<String, dynamic>>{};
+      for (var result in secondaryResults) {
+        if (result.containsKey('pharmacy_name') && result.containsKey('address')) {
+          uniquePharmacies[result['pharmacy_name']] = {
+            'pharmacy_name': result['pharmacy_name'],
+            'address': result['address'],
+            'imagePath': result['imagePath'] ?? '',
+            'phone': result['phone'] ?? '', // Assuming phone is available
+          };
+        }
+      }
+      final pharmaciesList = uniquePharmacies.values.toList();
+
       if (mounted) {
         setState(() {
           _searchResults = filteredResults;
+          _pharmaciesWithMedicine = pharmaciesList; // Update pharmacies list
         });
         _showOverlay(context);
       }
@@ -1099,15 +1174,33 @@ Now, analyze the image and return the list of medicine names with accurate spell
           child: Container(
             height: MediaQuery.of(context).size.height * 0.8,
             color: Colors.grey[200],
-            child: _searchResults.isEmpty
-                ? Center(child: Text('No results found', style: TextStyle(fontSize: 16 * MediaQuery.of(context).size.width / 360)))
-                : ListView.builder(
-              padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.025),
-              itemCount: _searchResults.length,
-              itemBuilder: (context, index) {
-                final medicine = _searchResults[index];
-                return _buildSearchResultItem(medicine);
-              },
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  if (_pharmaciesWithMedicine.isNotEmpty) ...[
+                    _buildPharmaciesCard(), // Display pharmacies card
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.015),
+                  ],
+                  if (_searchResults.isEmpty)
+                    Center(
+                      child: Text(
+                        'No results found',
+                        style: TextStyle(fontSize: 16 * MediaQuery.of(context).size.width / 360),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.025),
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final medicine = _searchResults[index];
+                        return _buildSearchResultItem(medicine);
+                      },
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1120,6 +1213,110 @@ Now, analyze the image and return the list of medicine names with accurate spell
   void _removeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
+  }
+
+  Widget _buildPharmaciesCard() {
+    return Card(
+      margin: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width * 0.025,
+        vertical: MediaQuery.of(context).size.height * 0.01,
+      ),
+      elevation: 4.0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15 * MediaQuery.of(context).size.width / 360),
+      ),
+      color: Colors.white,
+      child: Padding(
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.025),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Available at These Pharmacies',
+              style: TextStyle(
+                fontSize: MediaQuery.of(context).size.width * 0.045,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.01),
+            ..._pharmaciesWithMedicine.map((pharmacy) {
+              return Padding(
+                padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height * 0.005),
+                child: Row(
+                  children: [
+                    Container(
+                      width: MediaQuery.of(context).size.width * 0.15,
+                      height: MediaQuery.of(context).size.width * 0.15,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
+                        color: Colors.blue[50],
+                      ),
+                      child: pharmacy['imagePath'] != null && pharmacy['imagePath'].isNotEmpty
+                          ? ClipRRect(
+                        borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
+                        child: Image.asset(
+                          pharmacy['imagePath'],
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.store,
+                              size: MediaQuery.of(context).size.width * 0.075,
+                              color: Colors.blue,
+                            );
+                          },
+                        ),
+                      )
+                          : Icon(
+                        Icons.store,
+                        size: MediaQuery.of(context).size.width * 0.075,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    SizedBox(width: MediaQuery.of(context).size.width * 0.025),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pharmacy['pharmacy_name'],
+                            style: TextStyle(
+                              fontSize: MediaQuery.of(context).size.width * 0.04,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: MediaQuery.of(context).size.height * 0.005),
+                          Text(
+                            pharmacy['address'] ?? 'No address available',
+                            style: TextStyle(
+                              fontSize: MediaQuery.of(context).size.width * 0.035,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.phone,
+                        size: MediaQuery.of(context).size.width * 0.05,
+                        color: Colors.green,
+                      ),
+                      onPressed: () => _makePhoneCall(pharmacy['phone']),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSearchResultItem(Map<String, dynamic> medicine) {
@@ -1300,12 +1497,12 @@ Now, analyze the image and return the list of medicine names with accurate spell
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
               ),
-              child: medicine['imagePath'] != null
+              child: medicine['imagePath'] != null && medicine['imagePath'].isNotEmpty
                   ? ClipRRect(
                 borderRadius: BorderRadius.circular(10 * MediaQuery.of(context).size.width / 360),
                 child: Image.asset(
                   medicine['imagePath'],
-                  fit: BoxFit.contain,
+                  fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Icon(
                       Icons.medical_services,
@@ -1677,14 +1874,14 @@ Now, analyze the image and return the list of medicine names with accurate spell
                           _buildButton(
                             'Product Picture',
                             Icons.camera_alt,
-                            screenHeight * 0.08,
+                            screenHeight * 0.11,
                             onTap: _pickImage,
                           ),
                           _buildButton(
                             'Pharmacist Assistance',
                             Icons.phone,
                             screenHeight * 0.08,
-                            onTap: _makePhoneCall,
+                            onTap: () => _makePhoneCall('16676'),
                           ),
                         ],
                       ),
@@ -1822,93 +2019,93 @@ Now, analyze the image and return the list of medicine names with accurate spell
             opacity: 1.0,
             duration: const Duration(milliseconds: 300),
             child: AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * MediaQuery.of(context).size.width / 360)),
-              backgroundColor: Colors.white,
-              title: Text(
-                'Select Delivery Address',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18 * MediaQuery.of(context).size.width / 360),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    if (_addresses.isEmpty)
-                      Text(
-                        'No addresses found.',
-                        style: TextStyle(fontSize: 16 * MediaQuery.of(context).size.width / 360),
-                      )
-                    else
-                      ..._addresses.map((address) {
-                        String fullAddress =
-                            '${address['details']}, ${address['city']}, ${address['governorate']}, ${address['country']}';
-                        return ListTile(
-                          title: Text(
-                            fullAddress,
-                            style: TextStyle(fontSize: 14 * MediaQuery.of(context).size.width / 360),
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _selectedAddress = fullAddress;
-                            });
-                            Navigator.pop(context);
-                          },
-                        );
-                      }).toList(),
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.015),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AddressManagementPage(email: widget.email),
-                          ),
-                        );
-                        if (result == true) {
-                          await _fetchAddressesFromFirebase();
-                          if (_addresses.isNotEmpty) {
-                            String newAddress =
-                                '${_addresses.last['details']}, ${_addresses.last['city']}, ${_addresses.last['governorate']}, ${_addresses.last['country']}';
-                            setState(() {
-                              _selectedAddress = newAddress;
-                            });
-                          }
-                          Navigator.pop(context);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8 * MediaQuery.of(context).size.width / 360)),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: MediaQuery.of(context).size.width * 0.05,
-                          vertical: MediaQuery.of(context).size.height * 0.015,
-                        ),
-                      ),
-                      child: Text(
-                        'Add New Address',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: MediaQuery.of(context).size.width * 0.04,
-                        ),
-                      ),
-                    ),
-                  ],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * MediaQuery.of(context).size.width / 360)),
+                backgroundColor: Colors.white,
+                title: Text(
+                  'Select Delivery Address',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18 * MediaQuery.of(context).size.width / 360),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 16 * MediaQuery.of(context).size.width / 360,
-                    ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      if (_addresses.isEmpty)
+                        Text(
+                          'No addresses found.',
+                          style: TextStyle(fontSize: 16 * MediaQuery.of(context).size.width / 360),
+                        )
+                      else
+                        ..._addresses.map((address) {
+                          String fullAddress =
+                              '${address['details']}, ${address['city']}, ${address['governorate']}, ${address['country']}';
+                          return ListTile(
+                            title: Text(
+                              fullAddress,
+                              style: TextStyle(fontSize: 14 * MediaQuery.of(context).size.width / 360),
+                            ),
+                            onTap: () {
+                              setState(() {
+                                _selectedAddress = fullAddress;
+                              });
+                              Navigator.pop(context);
+                            },
+                          );
+                        }).toList(),
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.015),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AddressManagementPage(email: widget.email),
+                            ),
+                          );
+                          if (result == true) {
+                            await _fetchAddressesFromFirebase();
+                            if (_addresses.isNotEmpty) {
+                              String newAddress =
+                                  '${_addresses.last['details']}, ${_addresses.last['city']}, ${_addresses.last['governorate']}, ${_addresses.last['country']}';
+                              setState(() {
+                                _selectedAddress = newAddress;
+                              });
+                            }
+                            Navigator.pop(context);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8 * MediaQuery.of(context).size.width / 360)),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: MediaQuery.of(context).size.width * 0.05,
+                            vertical: MediaQuery.of(context).size.height * 0.015,
+                          ),
+                        ),
+                        child: Text(
+                          'Add New Address',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: MediaQuery.of(context).size.width * 0.04,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+                actions: [
+                TextButton(
+                onPressed: () {
+          Navigator.pop(context);
+          },
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16 * MediaQuery.of(context).size.width / 360),
             ),
           ),
+
+        ],
+        ),
+        ),
         );
       },
     );
