@@ -68,26 +68,19 @@ A Firebase account and a configured project.
 
 Setup
 
-1.
-Clone the Repository:
+1.Clone the Repository:
 
-2.
-Install Dependencies:
+2.Install Dependencies:
 
-3.
-Firebase Configuration:
+3.Firebase Configuration:
 
-•
-Create a new Firebase project in the Firebase Console.
+•Create a new Firebase project in the Firebase Console.
 
-•
-Add Android and iOS applications to your Firebase project.
+•Add Android and iOS applications to your Firebase project.
 
-•
-Follow the instructions to add google-services.json (for Android) and GoogleService-Info.plist (for iOS) files to your project.
+•Follow the instructions to add google-services.json (for Android) and GoogleService-Info.plist (for iOS) files to your project.
 
-•
-Ensure email/password authentication is enabled in Firebase Authentication.
+•Ensure email/password authentication is enabled in Firebase Authentication.
 
 
 
